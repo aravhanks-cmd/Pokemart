@@ -1053,9 +1053,11 @@ async function captureScan(){
   try{
     const cv = $("#scan-canvas");
     const w = v.videoWidth, h = v.videoHeight;
-    // read the whole card (name is up top, collector number bottom-left)
-    cv.width = w; cv.height = h;
-    cv.getContext("2d").drawImage(v, 0, 0, w, h);
+    // crop to the dashed guide box so background (carpet, table) is excluded
+    const gx = Math.round(w*0.12), gy = Math.round(h*0.09);
+    const gw = Math.round(w*0.76), gh = Math.round(h*0.82);
+    cv.width = gw; cv.height = gh;
+    cv.getContext("2d").drawImage(v, gx, gy, gw, gh, 0, 0, gw, gh);
     const { data } = await Tesseract.recognize(cv, "eng");
     const text = (data && data.text || "");
     const readLine = (text.split(/\n/).map(l=>l.trim()).filter(Boolean)[0] || "").slice(0,28);
