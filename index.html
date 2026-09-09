@@ -586,9 +586,15 @@ function cardFrame(c){
 // Real card photo when the live feed has loaded one; else a styled card (or bare glyph for tiny thumbs).
 function cardArtInner(c, mini){
   const src = c._imgS || c._img;
-  if(src) return `<img class="cardimg" src="${src}" alt="${esc(c.name)}" loading="lazy">`;
+  if(src) return `<img class="cardimg" src="${src}" alt="${esc(c.name)}" loading="lazy" onerror="pmImgFail(this,'${c.id}',${mini?1:0})">`;
   if(mini) return `<span class="glyph">${c.glyph}</span>`;
   return cardFrame(c);
+}
+// If a live photo URL fails to load, drop back to the styled card (no broken icon).
+function pmImgFail(el, id, mini){
+  const c = CARD_BY_ID[id]; if(!c) return;
+  c._imgS = null; c._img = null;
+  el.outerHTML = mini ? `<span class="glyph">${c.glyph}</span>` : cardFrame(c);
 }
 function deltaHTML(chg){
   const up = chg>=0; const cls = up?"up":"down";
