@@ -679,7 +679,7 @@ function extractPrice(card){
   return null;
 }
 async function apiFetch(q){
-  const url = "https://api.pokemontcg.io/v2/cards?pageSize=1&select=id,name,images,tcgplayer,cardmarket&q=" + encodeURIComponent(q);
+  const url = "https://api.pokemontcg.io/v2/cards?pageSize=1&select=id,name,number,set,images,tcgplayer,cardmarket&q=" + encodeURIComponent(q);
   const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(), 7000);
   try{
     const r = await fetch(url, {signal:ctl.signal}); clearTimeout(t);
@@ -950,16 +950,29 @@ async function captureScan(){
   try{
     const cv = $("#scan-canvas");
     const w = v.videoWidth, h = v.videoHeight;
-    // read the top third, where the card name sits
-    cv.width = w; cv.height = Math.round(h*0.33);
-    cv.getContext("2d").drawImage(v, 0, 0, w, cv.height, 0, 0, w, cv.height);
+    // read the whole card (name is up top, collector number bottom-left)
+    cv.width = w; cv.height = h;
+    cv.getContext("2d").drawImage(v, 0, 0, w, h);
     const { data } = await Tesseract.recognize(cv, "eng");
-    const text = (data && data.text || "").toLowerCase();
-    const match = matchCard(text);
-    if(match){ stopCamera(); showScanResult(match, text); }
-    else { setScanStatus("Couldn't read the name. Fill the frame, cut glare, hold steady — then try again."); if(btn) btn.disabled=false; }
+    const text = (data && data.text || "");
+    // 1) marketplace cards first — opens the in-app card with Buy
+    const local = matchCard(text.toLowerCase());
+    if(local){ stopCamera(); showScanResult(local); scanBusy=false; return; }
+    // 2) any real card, via the Pokémon TCG database
+    const name = parseName(text), number = parseNumber(text);
+    if(!name && !number){
+      setScanStatus("Couldn't read the card. Fill the frame, cut glare, hold steady — then try again.");
+      if(btn) btn.disabled=false; scanBusy=false; return;
+    }
+    setScanStatus(`<span class="scanning"><span class="spin"></span> Looking up ${esc(name||("#"+number))}…</span>`);
+    const card = await scanLookup(name, number);
+    if(card){ stopCamera(); showScanResultAPI(card); }
+    else {
+      setScanStatus(`Read “${esc(name||number)}” but couldn't find it in the database. Try again with better light.`);
+      if(btn) btn.disabled=false;
+    }
   }catch(e){
-    setScanStatus("Scan failed to run. On the live site it needs to download the OCR engine once — check your connection and retry.");
+    setScanStatus("Scan failed. It needs to reach the card database — check your connection and retry.");
     const b=$("#scan-btn"); if(b) b.disabled=false;
   }
   scanBusy = false;
@@ -975,6 +988,61 @@ function matchCard(text){
     if(s>score){ score=s; best=c; }
   });
   return score>=2 ? best : null;
+}
+// Pull the likely Pokémon name out of OCR text (top lines, minus card boilerplate).
+function parseName(text){
+  const noise = /\b(basic|stage|hp|ability|evolves|from|pok[eé]mon|trainer|energy|single|strike|rapid|fusion|dynamax|gigantamax|vmax|vstar|tera|the|and|does|damage|attack|coin|flip|rule|weakness|resistance|retreat)\b/gi;
+  const lines = text.split(/\n/).map(l=>l.trim()).filter(Boolean);
+  for(const line of lines.slice(0,4)){
+    const cleaned = line.replace(noise," ").replace(/[^A-Za-z' .-]/g," ").replace(/\s+/g," ").trim();
+    const toks = cleaned.split(" ").filter(t=>t.replace(/[^A-Za-z]/g,"").length>=3);
+    if(toks.length) return toks.slice(0,2).join(" ").trim();
+  }
+  return null;
+}
+// Collector number like "121/159" -> "121"
+function parseNumber(text){
+  const m = text.replace(/\s+/g,"").match(/(\d{1,3})\/(\d{1,3})/);
+  return m ? m[1] : null;
+}
+async function scanLookup(name, number){
+  const q = [];
+  if(name)   q.push(`name:"${name.replace(/"/g,"")}"`);
+  if(number) q.push(`number:${number}`);
+  if(!q.length) return null;
+  let card = await apiFetch(q.join(" "));
+  if(!card && name && number) card = await apiFetch(`name:"${name.replace(/"/g,"")}"`);
+  return card;
+}
+function showScanResult(c){
+  $("#sheet-body").innerHTML = `
+    <div class="empty" style="padding:20px 10px 4px"><div class="ico">✅</div>
+      <h3>Match found</h3><p>This card is on PokéMarket.</p></div>
+    <div class="order" style="margin:6px 0 14px">
+      <div class="oimg" style="${artStyle(c.type)}">${cardArtInner(c,true)}</div>
+      <div class="omid"><div class="nm">${esc(c.name)}</div><div class="sub">${esc(c.set)} · ${esc(c.num)}</div></div>
+      <div style="text-align:right"><div class="price">${money(c.price)}</div>${deltaHTML(c.chg)}</div>
+    </div>
+    <div class="dactions">
+      <button class="btn ghost" data-scanagain="1">Scan again</button>
+      <button class="btn primary" data-card="${c.id}">View card</button>
+    </div>`;
+}
+function showScanResultAPI(card){
+  const price = extractPrice(card);
+  const img = card.images && (card.images.small || card.images.large);
+  const setn = (card.set && card.set.name) || "";
+  const num = card.number || "";
+  $("#sheet-body").innerHTML = `
+    <div class="empty" style="padding:20px 10px 4px"><div class="ico">✅</div>
+      <h3>Identified</h3><p>Matched from the Pokémon card database.</p></div>
+    <div class="order" style="margin:6px 0 14px">
+      <div class="oimg" style="background:#0d1016;width:56px;height:78px">${img?`<img class="cardimg" src="${img}" alt="${esc(card.name)}" style="object-fit:contain">`:""}</div>
+      <div class="omid"><div class="nm">${esc(card.name)}</div><div class="sub">${esc(setn)}${num?" · "+esc(num):""}</div></div>
+      <div style="text-align:right"><div class="price">${price?money(price):"—"}</div><div style="font-size:10px;color:var(--faint);font-weight:700;letter-spacing:.06em">MARKET</div></div>
+    </div>
+    <p style="text-align:center;font-size:12px;color:var(--faint);margin:0 0 12px">Price from TCGplayer · not listed on PokéMarket yet</p>
+    <button class="btn ghost" data-scanagain="1">Scan another card</button>`;
 }
 function showScanResult(c, raw){
   $("#sheet-body").innerHTML = `
