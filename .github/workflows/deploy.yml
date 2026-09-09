@@ -2,7 +2,7 @@ name: Deploy PokéMarket to GitHub Pages
 
 on:
   push:
-    branches: ["claude/app-build-c198ns", "main"]
+    branches: ["main"]
   workflow_dispatch:
 
 permissions:
