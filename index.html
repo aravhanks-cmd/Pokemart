@@ -1233,18 +1233,6 @@ function openCheckout(id){
       <div class="co-line"><span>Insured shipping</span><span class="price">${money(SHIP_FEE)}</span></div>
       <div class="co-line total"><span>Total</span><span class="price">${money(total)}</span></div>
     </div>
-    <div class="field"><label>Ship to</label>
-      <input class="inp" id="co-name" placeholder="Full name" value="${esc(a.name||'')}" style="margin-bottom:10px">
-      <input class="inp" id="co-addr" placeholder="Street address" value="${esc(a.addr||'')}" style="margin-bottom:10px">
-      <div class="co-grid" style="margin-bottom:10px">
-        <input class="inp" id="co-city" placeholder="City" value="${esc(a.city||'')}">
-        <input class="inp" id="co-state" placeholder="State / Region" value="${esc(a.state||'')}">
-      </div>
-      <div class="co-grid">
-        <input class="inp" id="co-zip" placeholder="ZIP / Postal" value="${esc(a.zip||'')}" inputmode="numeric">
-        <input class="inp" id="co-country" placeholder="Country" value="${esc(a.country||'United States')}">
-      </div>
-    </div>
     <div class="co-badge">🎮 Pays with your in-app balance (game money) — no real card, no real charge.</div>
     <button class="btn primary" data-placeorder="${c.id}" ${canPay?'':'disabled'}>${canPay?'Pay '+money(total):'Balance too low'}</button>`;
   showSheet();
@@ -1252,22 +1240,18 @@ function openCheckout(id){
 function placeOrder(id){
   const c = CARD_BY_ID[id]; if(!c) return;
   const total = c.price + SHIP_FEE;
-  const g = k => { const el=$("#"+k); return el?el.value.trim():""; };
-  const addr = {name:g("co-name"), addr:g("co-addr"), city:g("co-city"), state:g("co-state"), zip:g("co-zip"), country:g("co-country")};
-  if(!addr.name || !addr.addr || !addr.city || !addr.zip){ toast("Fill in your shipping address","err"); return; }
   if(S.wallet < total){ toast("Balance too low","err"); return; }
   S.wallet  -= total;
   S.revenue += c.price * FEE_RATE;               // your 3% commission
   S.owned.push({cardId:id, cost:c.price});
-  S.ship = addr;
   const eta = new Date(Date.now() + (3+Math.floor(Math.random()*3))*86400e3);
   const order = {id:"PM-"+Math.random().toString(36).slice(2,8).toUpperCase(), cardId:id,
-    price:c.price, ship:SHIP_FEE, total, addr, placedAt:Date.now(), eta:eta.getTime(), status:"Preparing shipment"};
+    price:c.price, ship:SHIP_FEE, total, placedAt:Date.now(), eta:eta.getTime(), status:"Preparing shipment"};
   S.orders.unshift(order);
   save(); renderWallet(); renderMarket();
   $("#sheet-body").innerHTML = `
     <div class="empty" style="padding:28px 10px 6px"><div class="ico">📦</div>
-      <h3>Order confirmed</h3><p>Your card is on its way to ${esc(addr.city)}.</p></div>
+      <h3>Order confirmed</h3><p>Your card is on its way.</p></div>
     <div class="co-sum">
       <div class="co-line"><span>Order</span><span class="price">#${order.id}</span></div>
       <div class="co-line"><span>${esc(c.name)}</span><span class="price">${money(c.price)}</span></div>
@@ -1478,7 +1462,7 @@ function renderPortfolio(){
         return `<div class="order">
           <div class="oimg" style="${artStyle(c.type)}">${cardArtInner(c,true)}</div>
           <div class="omid"><div class="nm">${esc(c.name)}</div>
-            <div class="sub">#${o.id} · ${esc(o.addr.city)} · ETA ${eta.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div></div>
+            <div class="sub">#${o.id} · ETA ${eta.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div></div>
           <span class="ostatus">${esc(o.status)}</span></div>`;}).join("")}` : ''}
 
     ${watchCards.length?`<div class="section-h"><h2>Watchlist</h2><span class="link">${watchCards.length}</span></div>
