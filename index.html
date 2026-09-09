@@ -1092,7 +1092,7 @@ function openCheckout(id){
         <input class="inp" id="co-country" placeholder="Country" value="${esc(a.country||'United States')}">
       </div>
     </div>
-    <div class="co-badge">🔒 Demo checkout — no real card is charged. Ready to connect to Stripe Checkout for live payments.</div>
+    <div class="co-badge">🎮 Pays with your in-app balance (game money) — no real card, no real charge.</div>
     <button class="btn primary" data-placeorder="${c.id}" ${canPay?'':'disabled'}>${canPay?'Pay '+money(total):'Balance too low'}</button>`;
   showSheet();
 }
