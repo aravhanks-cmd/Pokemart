@@ -1203,25 +1203,24 @@ async function captureScan(){
     const local = matchCard(text.toLowerCase());
     if(local){ stopCamera(); showScanResult(local); scanBusy=false; return; }
     // 2) any real card, via the Pokémon TCG database
-    const name = parseName(text), number = parseNumber(text);
+    const name = parseName(text), number = parseNumber(text), total = parseTotal(text), year = parseYear(text);
     if(!name && !number){
       setScanStatus(`Couldn't read any text${readLine?` (saw: “${esc(readLine)}”)`:""}. More light, less glare, hold steady — try again.`);
       if(btn) btn.disabled=false; scanBusy=false; return;
     }
     setScanStatus(`<span class="scanning"><span class="spin"></span> Looking up ${esc(name||("#"+number))}…</span>`);
-    const res = await scanLookup(name, number);
-    if(res.card){ stopCamera(); showScanResultAPI(res.card); }
-    else if(res.err==="http" && res.status===429){
-      setScanStatus(`Card database is busy (rate-limited). Wait ~30s, then scan again. (read “${esc(name||number)}”)`);
+    const res = await apiSearch(name || number);
+    if(res && res.err){
+      setScanStatus(res.err===429
+        ? `Card database is busy (rate-limited). Wait ~30s, then scan again. (read “${esc(name||number)}”)`
+        : `Couldn't reach the card database — check your connection and retry. (read “${esc(name||number)}”)`);
       if(btn) btn.disabled=false;
     }
-    else if(res.err==="http"){
-      setScanStatus(`Database error ${res.status}. Try again in a moment. (read “${esc(name||number)}”)`);
-      if(btn) btn.disabled=false;
-    }
-    else if(res.err==="network"){
-      setScanStatus(`Couldn't reach the card database — check your connection and retry. (read “${esc(name||number)}”)`);
-      if(btn) btn.disabled=false;
+    else if(res.length){
+      const ranked = rankScan(res, number, total, year);   // match by number + set size + year
+      stopCamera();
+      if(ranked.exact) showScanResultAPI(ranked.list[0], {number,total,year});
+      else showScanResults(ranked.list, number);
     }
     else {
       setScanStatus(`Read “${esc(name||number)}” but found no match. Try a straighter, clearer shot.`);
@@ -1264,6 +1263,30 @@ function parseNumber(text){
   const m = text.replace(/\s+/g,"").match(/(\d{1,3})\/(\d{1,3})/);
   return m ? m[1] : null;
 }
+// Set size from "121/159" -> "159"
+function parseTotal(text){
+  const m = text.replace(/\s+/g,"").match(/(\d{1,3})\/(\d{1,3})/);
+  return m ? m[2] : null;
+}
+// Copyright/print year, e.g. "©1999" -> 1999
+function parseYear(text){
+  const m = text.match(/\b(19[89]\d|20[0-3]\d)\b/);
+  return m ? parseInt(m[1],10) : null;
+}
+// Rank API results by how well number + set size + print year match the scan.
+function rankScan(list, number, total, year){
+  const scored = list.map(ac=>{
+    let s = 0;
+    if(number && String(ac.number) === String(number)) s += 3;
+    if(total && ac.set && String(ac.set.printedTotal) === String(total)) s += 3;
+    if(year && ac.set && ac.set.releaseDate && ac.set.releaseDate.slice(0,4) === String(year)) s += 2;
+    return {ac, s};
+  }).sort((a,b)=> b.s - a.s);
+  const top = scored[0], second = scored[1];
+  // confident only when number+size (or number+year) line up AND it's a clear winner
+  const exact = top.s >= 5 && (!second || top.s > second.s);
+  return { exact, list: scored.map(x=>x.ac) };
+}
 async function apiCardLookup(q){
   const url = "https://api.pokemontcg.io/v2/cards?pageSize=1&select=id,name,number,set,images,tcgplayer,cardmarket&q=" + encodeURIComponent(q);
   const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(), 12000);
@@ -1301,21 +1324,53 @@ function showScanResult(c){
       <button class="btn primary" data-card="${c.id}">View card</button>
     </div>`;
 }
-function showScanResultAPI(card){
-  const price = extractPrice(card);
-  const img = card.images && (card.images.small || card.images.large);
-  const setn = (card.set && card.set.name) || "";
-  const num = card.number || "";
+function showScanResultAPI(ac, meta){
+  const c = apiToCard(ac);
+  const bits = [];
+  if(meta){
+    if(meta.number && String(ac.number)===String(meta.number)) bits.push("card #"+meta.number);
+    if(meta.total && ac.set && String(ac.set.printedTotal)===String(meta.total)) bits.push("set of "+meta.total);
+    if(meta.year && ac.set && ac.set.releaseDate && ac.set.releaseDate.slice(0,4)===String(meta.year)) bits.push(meta.year);
+  }
   $("#sheet-body").innerHTML = `
-    <div class="empty" style="padding:20px 10px 4px"><div class="ico">✅</div>
-      <h3>Identified</h3><p>Matched from the Pokémon card database.</p></div>
-    <div class="order" style="margin:6px 0 14px">
-      <div class="oimg" style="background:#0d1016;width:56px;height:78px">${img?`<img class="cardimg" src="${img}" alt="${esc(card.name)}" style="object-fit:contain">`:""}</div>
-      <div class="omid"><div class="nm">${esc(card.name)}</div><div class="sub">${esc(setn)}${num?" · "+esc(num):""}</div></div>
-      <div style="text-align:right"><div class="price">${price?money(price):"—"}</div><div style="font-size:10px;color:var(--faint);font-weight:700;letter-spacing:.06em">MARKET</div></div>
+    <div class="empty" style="padding:18px 10px 2px"><div class="ico">✅</div>
+      <h3>Identified</h3><p>${bits.length?"Matched by "+bits.join(" · ")+".":"Matched from the card database."}</p></div>
+    <div class="order" style="margin:6px 0 10px">
+      <div class="oimg" style="background:#0d1016;width:56px;height:78px">${cardArtInner(c,true)}</div>
+      <div class="omid"><div class="nm">${esc(c.name)}</div><div class="sub">${esc(c.set)}${c.num?" · "+esc(c.num):""}</div></div>
+      <div style="text-align:right"><div class="price">${c.price?money(c.price):"—"}</div><div style="font-size:10px;color:var(--faint);font-weight:700;letter-spacing:.06em">MARKET</div></div>
     </div>
-    <p style="text-align:center;font-size:12px;color:var(--faint);margin:0 0 12px">Price from TCGplayer · not listed on PokéMarket yet</p>
-    <button class="btn ghost" data-scanagain="1">Scan another card</button>`;
+    <p style="text-align:center;font-size:12px;color:var(--faint);margin:0 0 12px">Wrong card? Tap “Not this one” to see other printings.</p>
+    <div class="dactions">
+      <button class="btn ghost" data-scanagain="1">Scan another</button>
+      <button class="btn ghost" data-notthis="${esc(c.name)}">Not this one</button>
+    </div>`;
+  showSheet();
+}
+async function showOtherPrintings(name){
+  setScanBusyMsg();
+  const res = await apiSearch(name);
+  if(res && res.err){ toast("Couldn't load other printings","err"); return; }
+  showScanResults(res || [], null);
+}
+function setScanBusyMsg(){ $("#sheet-body").innerHTML = `<div class="empty" style="padding:40px"><div class="ico">🔎</div><p>Loading other printings…</p></div>`; }
+function showScanResults(list, number){
+  // exact collector-number matches first (best chance of the right printing)
+  if(number) list = list.slice().sort((a,b)=> (String(b.number)===number) - (String(a.number)===number));
+  const rows = list.slice(0,14).map(ac=>{
+    const c = apiToCard(ac);
+    return `<button class="order" data-card="${c.id}" style="width:100%;text-align:left;cursor:pointer">
+      <div class="oimg" style="background:#0d1016;width:46px;height:64px">${cardArtInner(c,true)}</div>
+      <div class="omid"><div class="nm">${esc(c.name)}</div><div class="sub">${esc(c.set)}${c.num?" · "+esc(c.num):""}</div></div>
+      <div style="text-align:right"><div class="price">${c.price?money(c.price):"—"}</div></div>
+    </button>`;
+  }).join("");
+  $("#sheet-body").innerHTML = `
+    <div class="empty" style="padding:14px 10px 2px"><div class="ico">🔍</div>
+      <h3>Found ${list.length} match${list.length>1?"es":""}</h3><p>Tap the exact card you scanned.</p></div>
+    ${rows}
+    <button class="btn ghost" data-scanagain="1" style="margin-top:8px">Scan another card</button>`;
+  showSheet();
 }
 function showScanResult(c, raw){
   $("#sheet-body").innerHTML = `
@@ -1643,6 +1698,7 @@ document.addEventListener("click", e=>{
 $("#sheet-body").addEventListener("click", e=>{
   if(e.target.closest("#scan-btn")){ captureScan(); return; }
   if(e.target.closest("[data-scanagain]")){ openScanner(); return; }
+  const nt2=e.target.closest("[data-notthis]"); if(nt2){ showOtherPrintings(nt2.dataset.notthis); return; }
   const buyb = e.target.closest("[data-buy]"); if(buyb){ openCheckout(buyb.dataset.buy); return; }
   const po = e.target.closest("[data-placeorder]"); if(po){ placeOrder(po.dataset.placeorder); return; }
   if(e.target.closest("[data-closesheet]")){ closeSheet(); return; }
