@@ -861,6 +861,9 @@ function renderHome(){ const el=$("#home-bal"); if(el) el.textContent = money(S.
 // Paste your Stripe Payment Link URLs here, e.g.
 //   "charizard-ex": "https://buy.stripe.com/xxxxxxxx"
 const STRIPE_LINKS = {
+  // TODO: replace with YOUR real Charizard payment link (https://buy.stripe.com/...) to get paid.
+  // For now this opens Stripe's live checkout demo so the flow is visible.
+  "charizard-ex": "https://checkout.stripe.dev/"
 };
 function renderReal(){
   const configured = Object.keys(STRIPE_LINKS).length > 0;
