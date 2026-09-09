@@ -866,10 +866,10 @@ function renderReal(){
   const configured = Object.keys(STRIPE_LINKS).length > 0;
   $("#real-setup").innerHTML = configured ? "" : `
     <div class="soonrow" style="align-items:flex-start;border-color:var(--gold);background:var(--gold-soft)">
-      <span>⚙️</span>
-      <div><b>Turn on real payments</b><br>
-        <span>Create free Stripe payment links and paste them in — then Buy charges real money and Stripe collects the shipping address.</span>
-        <div style="margin-top:10px"><button class="btn gold" data-stripehelp="1" style="width:auto;padding:8px 14px;font-size:13px">How to set up Stripe →</button></div>
+      <span>🛒</span>
+      <div><b>Buy takes you to TCGplayer</b><br>
+        <span>Tap any card to buy the real thing on TCGplayer. Want to sell your <i>own</i> cards for real money? Connect Stripe.</span>
+        <div style="margin-top:10px"><button class="btn gold" data-stripehelp="1" style="width:auto;padding:8px 14px;font-size:13px">Set up Stripe to sell →</button></div>
       </div>
     </div>`;
   $("#real-count").textContent = CARDS.length + " cards";
@@ -879,7 +879,7 @@ function renderReal(){
       <div class="oimg" style="${artStyle(c.type)}">${cardArtInner(c,true)}</div>
       <div class="omid"><div class="nm">${esc(c.name)}</div><div class="sub">${esc(c.set)} · ${esc(c.grade)}</div>
         <div class="price" style="margin-top:3px">${money(c.price)}</div></div>
-      <span class="btn ${link?'primary':'ghost'}" style="width:auto;padding:10px 15px;font-size:13px;flex:0 0 auto;pointer-events:none">${link?'Buy':'Soon'}</span>
+      <span class="btn primary" style="width:auto;padding:10px 15px;font-size:13px;flex:0 0 auto;pointer-events:none">Buy</span>
     </button>`;
   }).join("");
 }
@@ -887,23 +887,9 @@ function realBuy(id){
   const c = CARD_BY_ID[id]; if(!c) return;
   const link = STRIPE_LINKS[id];
   if(link){ window.open(link, "_blank", "noopener"); return; }
-  // no Stripe link yet — show a card-specific sheet
-  $("#sheet-body").innerHTML = `
-    <div class="dhead">
-      <div class="dbig" style="${artStyle(c.type)}">${cardArtInner(c)}</div>
-      <div class="dtitle">
-        <div class="nm">${esc(c.name)}</div>
-        <div class="set">${esc(c.set)} · ${esc(c.num)}</div>
-        <div class="dprice"><span class="price">${money(c.price)}</span>
-          <span style="font-size:11px;color:var(--faint);font-weight:700">real market</span></div>
-      </div>
-    </div>
-    <div class="co-badge">💳 Real checkout for this card isn't connected yet. Add its Stripe payment link to enable Buy.</div>
-    <div class="dactions">
-      <button class="btn ghost" data-closesheet="1">Close</button>
-      <button class="btn gold" data-stripehelp="1">Set up Stripe</button>
-    </div>`;
-  showSheet();
+  // no Stripe link — open the real card on TCGplayer to buy for real
+  const q = encodeURIComponent(`${c.name} ${c.set}`);
+  window.open(`https://www.tcgplayer.com/search/pokemon/product?q=${q}&view=grid`, "_blank", "noopener");
 }
 function openStripeHelp(){
   $("#sheet-body").innerHTML = `
