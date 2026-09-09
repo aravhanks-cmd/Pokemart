@@ -259,6 +259,15 @@ input{font-family:inherit}
   backdrop-filter:saturate(1.4) blur(16px);-webkit-backdrop-filter:saturate(1.4) blur(16px);
   border-top:1px solid var(--line-soft)}
 .navbtn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;color:var(--faint);font-size:10px;font-weight:700}
+.nav{grid-template-columns:repeat(5,1fr)}
+.camera{position:relative;width:100%;aspect-ratio:3/4;background:#0a0d12;border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+.camera video{width:100%;height:100%;object-fit:cover;display:block}
+.camera .guide{position:absolute;inset:9% 12%;border:2px dashed rgba(255,255,255,.75);border-radius:12px;pointer-events:none;box-shadow:0 0 0 100vmax rgba(0,0,0,.28)}
+.camera .hint{position:absolute;left:0;right:0;bottom:10px;text-align:center;color:#fff;font-size:11.5px;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.7);padding:0 12px}
+.scan-status{text-align:center;color:var(--muted);font-size:13px;min-height:18px;margin:12px 0}
+.scanning{display:inline-flex;align-items:center;gap:8px}
+.spin{width:15px;height:15px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:rot .8s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
 .navbtn svg{width:23px;height:23px}
 .navbtn.on{color:var(--accent)}
 .navbtn.on svg{transform:translateY(-1px)}
@@ -438,6 +447,10 @@ input{font-family:inherit}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
       Portfolio
     </button>
+    <button class="navbtn" data-action="scan">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3.2"/></svg>
+      Scan
+    </button>
   </nav>
 
   <div class="scrim" id="scrim"></div>
@@ -448,6 +461,7 @@ input{font-family:inherit}
   <div class="toast" id="toast"></div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js"></script>
 <script>
 "use strict";
 /* ============================================================
@@ -886,7 +900,96 @@ function openAuction(aucId){
 function bidStep(cur){ return cur<50?2 : cur<150?5 : cur<400?10 : 25; }
 
 function showSheet(){ $("#scrim").classList.add("show"); $("#sheet").classList.add("show"); }
-function closeSheet(){ $("#scrim").classList.remove("show"); $("#sheet").classList.remove("show"); }
+function closeSheet(){ $("#scrim").classList.remove("show"); $("#sheet").classList.remove("show"); stopCamera(); }
+
+/* ============================================================
+   Card scanner — camera + on-device OCR (Tesseract.js)
+   Works on the live/hosted site with camera permission. Not in the
+   sandboxed Artifact viewer (camera + OCR assets are blocked there).
+   ============================================================ */
+let scanStream = null, scanBusy = false;
+function openScanner(){
+  $("#sheet-body").innerHTML = `
+    <h2 style="font-family:var(--font-d);font-weight:700;font-size:20px;margin:2px 0 12px">Scan a card</h2>
+    <div class="camera">
+      <video id="scan-video" playsinline muted autoplay></video>
+      <div class="guide"></div>
+      <div class="hint">Fill the frame with the card — bright light, avoid glare</div>
+    </div>
+    <p class="scan-status" id="scan-status">Starting camera…</p>
+    <button class="btn primary" id="scan-btn" disabled>Capture &amp; identify</button>
+    <button class="btn ghost" data-closesheet="1" style="margin-top:10px">Cancel</button>
+    <canvas id="scan-canvas" hidden></canvas>`;
+  showSheet();
+  startCamera();
+}
+async function startCamera(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    setScanStatus("This browser can't open the camera. Open the app in Chrome or Safari."); return;
+  }
+  try{
+    scanStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}}});
+    const v = $("#scan-video"); if(!v){ stopCamera(); return; }
+    v.srcObject = scanStream; await v.play();
+    setScanStatus("Point at a card, then tap Capture.");
+    const btn = $("#scan-btn"); if(btn) btn.disabled = false;
+  }catch(e){
+    setScanStatus("Camera blocked. Allow camera access, or open the live site in Chrome/Safari (not the in-app viewer).");
+  }
+}
+function stopCamera(){ if(scanStream){ scanStream.getTracks().forEach(t=>t.stop()); scanStream=null; } }
+function setScanStatus(html){ const s=$("#scan-status"); if(s) s.innerHTML = html; }
+async function captureScan(){
+  if(scanBusy) return;
+  const v = $("#scan-video");
+  if(!v || !v.videoWidth){ toast("Camera not ready","err"); return; }
+  if(typeof Tesseract === "undefined"){ setScanStatus("Scanner engine didn't load — check your connection and try again."); return; }
+  scanBusy = true;
+  const btn = $("#scan-btn"); if(btn){ btn.disabled=true; }
+  setScanStatus(`<span class="scanning"><span class="spin"></span> Reading card…</span>`);
+  try{
+    const cv = $("#scan-canvas");
+    const w = v.videoWidth, h = v.videoHeight;
+    // read the top third, where the card name sits
+    cv.width = w; cv.height = Math.round(h*0.33);
+    cv.getContext("2d").drawImage(v, 0, 0, w, cv.height, 0, 0, w, cv.height);
+    const { data } = await Tesseract.recognize(cv, "eng");
+    const text = (data && data.text || "").toLowerCase();
+    const match = matchCard(text);
+    if(match){ stopCamera(); showScanResult(match, text); }
+    else { setScanStatus("Couldn't read the name. Fill the frame, cut glare, hold steady — then try again."); if(btn) btn.disabled=false; }
+  }catch(e){
+    setScanStatus("Scan failed to run. On the live site it needs to download the OCR engine once — check your connection and retry.");
+    const b=$("#scan-btn"); if(b) b.disabled=false;
+  }
+  scanBusy = false;
+}
+function matchCard(text){
+  let best=null, score=0;
+  const stop = ["vmax","vstar","gx","ex"];
+  CARDS.forEach(c=>{
+    let s=0;
+    c.name.toLowerCase().split(/\s+/).forEach(tok=>{ if(tok.length>3 && !stop.includes(tok) && text.includes(tok)) s+=2; });
+    const num = (c.num||"").split("/")[0];
+    if(num && text.includes(num)) s+=1;
+    if(s>score){ score=s; best=c; }
+  });
+  return score>=2 ? best : null;
+}
+function showScanResult(c, raw){
+  $("#sheet-body").innerHTML = `
+    <div class="empty" style="padding:20px 10px 4px"><div class="ico">✅</div>
+      <h3>Match found</h3><p>Identified from your scan.</p></div>
+    <div class="order" style="margin:6px 0 14px">
+      <div class="oimg" style="${artStyle(c.type)}">${cardArtInner(c,true)}</div>
+      <div class="omid"><div class="nm">${esc(c.name)}</div><div class="sub">${esc(c.set)} · ${esc(c.num)}</div></div>
+      <div style="text-align:right"><div class="price">${money(c.price)}</div>${deltaHTML(c.chg)}</div>
+    </div>
+    <div class="dactions">
+      <button class="btn ghost" data-scanagain="1">Scan again</button>
+      <button class="btn primary" data-card="${c.id}">View card</button>
+    </div>`;
+}
 
 /* ============================================================
    Actions: buy / watch / bid
@@ -1189,7 +1292,8 @@ setInterval(()=>{
 /* ============================================================
    Events (delegated)
    ============================================================ */
-$("#nav").addEventListener("click", e=>{ const b=e.target.closest(".navbtn"); if(b) switchTab(b.dataset.tab); });
+$("#nav").addEventListener("click", e=>{ const b=e.target.closest(".navbtn"); if(!b) return;
+  if(b.dataset.action==="scan"){ openScanner(); } else if(b.dataset.tab){ switchTab(b.dataset.tab); } });
 
 document.addEventListener("click", e=>{
   const watch = e.target.closest("[data-watch]");
@@ -1201,6 +1305,8 @@ document.addEventListener("click", e=>{
 });
 
 $("#sheet-body").addEventListener("click", e=>{
+  if(e.target.closest("#scan-btn")){ captureScan(); return; }
+  if(e.target.closest("[data-scanagain]")){ openScanner(); return; }
   const buyb = e.target.closest("[data-buy]"); if(buyb){ openCheckout(buyb.dataset.buy); return; }
   const po = e.target.closest("[data-placeorder]"); if(po){ placeOrder(po.dataset.placeorder); return; }
   if(e.target.closest("[data-closesheet]")){ closeSheet(); return; }
