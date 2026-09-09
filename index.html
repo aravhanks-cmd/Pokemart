@@ -312,6 +312,38 @@ input{font-family:inherit}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 .toast.err{background:var(--down);color:#fff}
 .toast.win{background:var(--up);color:#06251a}
+
+/* ---------- live prices + real card images ---------- */
+.cardimg{width:100%;height:100%;object-fit:cover;display:block}
+.dbig .cardimg{object-fit:contain;padding:4px}
+.selcard .cardimg{object-fit:contain}
+.livepill{display:inline-flex;align-items:center;gap:7px;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.livedot{width:7px;height:7px;border-radius:50%;background:var(--faint);flex:0 0 auto}
+.livedot.live{background:var(--up);box-shadow:0 0 0 3px var(--up-soft);animation:pulse 1.8s ease-in-out infinite}
+.livedot.loading{background:var(--gold);animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+/* ---------- checkout ---------- */
+.co-sum{background:var(--surface-2);border:1px solid var(--line-soft);border-radius:14px;padding:10px 14px;margin-bottom:14px}
+.co-line{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;font-size:14px;color:var(--muted)}
+.co-line .price{font-size:14px;color:var(--text)}
+.co-line.total{border-top:1px solid var(--line);margin-top:6px;padding-top:10px;font-weight:800;color:var(--text)}
+.co-line.total .price{font-size:18px}
+.co-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.inp{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:11px 12px;color:var(--text);font-size:14px;outline:none;box-shadow:var(--shadow)}
+.inp:focus{border-color:var(--accent)}
+.inp::placeholder{color:var(--faint)}
+.co-badge{display:flex;align-items:center;gap:8px;font-size:11.5px;line-height:1.4;color:var(--muted);background:var(--surface-2);border:1px dashed var(--line);border-radius:10px;padding:10px 12px;margin:12px 0}
+
+/* ---------- orders / shipments ---------- */
+.order{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:11px 12px;box-shadow:var(--shadow);margin-bottom:10px;display:flex;gap:12px;align-items:center}
+.order .oimg{width:44px;height:60px;flex:0 0 auto;border-radius:8px;overflow:hidden;display:grid;place-items:center}
+.order .oimg .glyph{font-size:22px}
+.order .omid{flex:1;min-width:0}
+.order .omid .nm{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.order .omid .sub{font-size:11.5px;color:var(--faint)}
+.ostatus{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:4px 8px;border-radius:999px;background:var(--gold-soft);color:var(--gold);white-space:nowrap;flex:0 0 auto}
+.ostatus.transit{background:var(--up-soft);color:var(--up)}
 </style>
 </head>
 <body>
@@ -331,7 +363,7 @@ input{font-family:inherit}
   <main class="scroll" id="scroll">
     <!-- MARKET -->
     <section class="view active" id="view-market">
-      <p class="eyebrow">Live market · updated just now</p>
+      <p class="eyebrow"><span class="livepill"><span class="livedot loading" id="livedot"></span><span id="livestatus">Loading live prices…</span></span></p>
       <div class="search">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
         <input id="search" type="search" placeholder="Search Charizard, sets, rarities…" autocomplete="off">
@@ -451,7 +483,7 @@ const FAKE_BIDDERS = ["ashketchum","holo_hunter","pikafan22","gymleader_misty","
 /* ============================================================
    State + persistence
    ============================================================ */
-const STORE_KEY = "pokemarket.v2";
+const STORE_KEY = "pokemarket.v3";
 const FEE_RATE = 0.03;                 // 3% platform commission → owner earnings
 const now = () => Date.now();
 function seedAuctions(){
@@ -479,6 +511,8 @@ function defaultState(){
     watch: ["moonbreon","charizard-ex"],
     auctions: seedAuctions(),
     listings: [],
+    orders: [],       // purchases awaiting shipment
+    ship: null,       // last-used shipping address (prefill)
     revenue: 128.44   // platform commission you've earned so far (demo)
   };
 }
@@ -504,6 +538,12 @@ const money = n => "$"+Number(n).toLocaleString("en-US",{minimumFractionDigits:2
 const money0 = n => "$"+Math.round(n).toLocaleString("en-US");
 const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function artStyle(type){ return `background:${GRADIENTS[type]||GRADIENTS.normal}`; }
+// Real card photo when the live feed has loaded one; otherwise the styled glyph.
+function cardArtInner(c){
+  const src = c._imgS || c._img;
+  return src ? `<img class="cardimg" src="${src}" alt="${esc(c.name)}" loading="lazy">`
+             : `<span class="glyph">${c.glyph}</span>`;
+}
 function deltaHTML(chg){
   const up = chg>=0; const cls = up?"up":"down";
   return `<span class="delta ${cls}">${up?"▲":"▼"} ${Math.abs(chg).toFixed(1)}%</span>`;
@@ -540,6 +580,101 @@ function fmtCountdown(ms){
   if(h>0) return h+"h "+String(m).padStart(2,"0")+"m";
   if(m>0) return m+":"+String(ss).padStart(2,"0");
   return "0:"+String(ss).padStart(2,"0");
+}
+
+/* ============================================================
+   Live data — Pokémon TCG API (prices + real card photos)
+   Free API: https://docs.pokemontcg.io/  (no key needed for light use)
+   Works when the app runs on your device or a real host. In the sandboxed
+   Artifact preview, external requests/images are blocked, so it falls back
+   to the built-in sample data automatically.
+   ============================================================ */
+const LIVE_KEY = "pokemarket.live";
+// Overrides where our display name/set differs from the API's.
+const API_MAP = {
+  "moonbreon":  {name:"Umbreon VMAX",  set:"Evolving Skies"},
+  "blastoise-ex":{name:"Blastoise ex", set:"151"},
+  "venusaur-ex":{name:"Venusaur ex",   set:"151"},
+  "mewtwo-gx":  {name:"Mewtwo-GX",     set:"Shining Legends"},
+  "alakazam":   {name:"Alakazam",      set:"Base"},
+  "zapdos":     {name:"Zapdos",        set:"Base"},
+  "machamp":    {name:"Machamp",       set:"Base"},
+  "snorlax":    {name:"Snorlax",       set:"Jungle"}
+};
+function extractPrice(card){
+  const tp = card.tcgplayer && card.tcgplayer.prices;
+  if(tp){
+    for(const k of ["holofoil","reverseHolofoil","normal","1stEditionHolofoil","unlimitedHolofoil"])
+      if(tp[k] && tp[k].market) return tp[k].market;
+    for(const k in tp){ const p=tp[k]; if(p && (p.market||p.mid)) return p.market||p.mid; }
+  }
+  const cm = card.cardmarket && card.cardmarket.prices;
+  if(cm) return cm.averageSellPrice || cm.trendPrice || cm.avg7 || null;
+  return null;
+}
+async function apiFetch(q){
+  const url = "https://api.pokemontcg.io/v2/cards?pageSize=1&select=id,name,images,tcgplayer,cardmarket&q=" + encodeURIComponent(q);
+  const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(), 7000);
+  try{
+    const r = await fetch(url, {signal:ctl.signal}); clearTimeout(t);
+    if(!r.ok) return null;
+    const j = await r.json(); return (j.data && j.data[0]) || null;
+  }catch(e){ clearTimeout(t); return null; }
+}
+function setLiveStatus(state, txt){
+  const dot=$("#livedot"), s=$("#livestatus"); if(!dot||!s) return;
+  dot.className = "livedot " + (state==="live"?"live":state==="loading"?"loading":"");
+  s.textContent = txt;
+  s.parentElement.style.color = state==="off"?"var(--faint)":state==="loading"?"var(--gold)":"var(--up)";
+}
+function applyLive(results, prev, recomputeChg){
+  CARDS.forEach(c=>{
+    const r = results[c.id]; if(!r) return;
+    if(r.price){
+      const old = prev[c.id] && prev[c.id].price;
+      if(recomputeChg && old) c.chg = (r.price-old)/old*100;
+      c.price = r.price;
+    }
+    if(r.img)  c._img  = r.img;
+    if(r.imgS) c._imgS = r.imgS;
+  });
+  renderWallet();
+  if(activeTab==="market")    renderMarket();
+  if(activeTab==="auctions")  renderAuctions();
+  if(activeTab==="portfolio") renderPortfolio();
+}
+async function fetchLive(force){
+  let cache={}; try{ cache=JSON.parse(localStorage.getItem(LIVE_KEY)||"{}"); }catch(e){}
+  const prev = cache.prices || {};
+  const fresh = cache.ts && (Date.now()-cache.ts < 6*3600e3);
+  if(fresh && !force && Object.keys(prev).length){
+    applyLive(prev, prev, false);
+    setLiveStatus("live", "Live prices · TCGplayer");
+    return;
+  }
+  setLiveStatus("loading", "Fetching live prices…");
+  const results = {};
+  await Promise.all(CARDS.map(async c=>{
+    const m = API_MAP[c.id] || {name:c.name, set:c.set};
+    let card = await apiFetch(`name:"${m.name}" set.name:"${m.set}"`);
+    if(!card) card = await apiFetch(`name:"${m.name}"`);
+    if(!card) return;
+    const price = extractPrice(card);
+    const img  = card.images && card.images.large;
+    const imgS = card.images && card.images.small;
+    if(price || imgS) results[c.id] = {
+      price: price || (prev[c.id] && prev[c.id].price) || c.price,
+      img, imgS
+    };
+  }));
+  if(Object.keys(results).length){
+    applyLive(results, prev, true);
+    try{ localStorage.setItem(LIVE_KEY, JSON.stringify({ts:Date.now(), prices:results})); }catch(e){}
+    setLiveStatus("live", "Live prices · TCGplayer");
+    toast("Live prices & card photos loaded ✓");
+  }else{
+    setLiveStatus("off", "Sample data · live feed unavailable here");
+  }
 }
 
 /* ============================================================
@@ -582,7 +717,7 @@ function cardTile(c){
   const watched = S.watch.includes(c.id);
   return `<button class="tcard" data-card="${c.id}">
     <div class="art" style="${artStyle(c.type)}">
-      <span class="glyph">${c.glyph}</span>
+      ${cardArtInner(c)}
       <span class="rarity">${RSHORT[c.rarity]||"·"} · ${c.grade}</span>
       <span class="watch ${watched?'on':''}" data-watch="${c.id}" role="button" aria-label="Watch">${watched?'★':'☆'}</span>
     </div>
@@ -627,7 +762,7 @@ function openCard(id){
   const canBuy = S.wallet >= c.price;
   $("#sheet-body").innerHTML = `
     <div class="dhead">
-      <div class="dbig" style="${artStyle(c.type)}"><span class="glyph">${c.glyph}</span></div>
+      <div class="dbig" style="${artStyle(c.type)}">${cardArtInner(c)}</div>
       <div class="dtitle">
         <div class="nm">${esc(c.name)}</div>
         <div class="set">${esc(c.set)} · ${esc(c.num)}</div>
@@ -666,7 +801,7 @@ function openAuction(aucId){
   const bids = a.bids.slice().reverse();
   $("#sheet-body").innerHTML = `
     <div class="dhead">
-      <div class="dbig" style="${artStyle(c.type)}"><span class="glyph">${c.glyph}</span></div>
+      <div class="dbig" style="${artStyle(c.type)}">${cardArtInner(c)}</div>
       <div class="dtitle">
         <div class="nm">${esc(c.name)}</div>
         <div class="set">${esc(c.set)} · ${esc(c.num)}</div>
@@ -704,15 +839,71 @@ function closeSheet(){ $("#scrim").classList.remove("show"); $("#sheet").classLi
 /* ============================================================
    Actions: buy / watch / bid
    ============================================================ */
-function buy(id){
+const SHIP_FEE = 4.99;
+function openCheckout(id){
   const c = CARD_BY_ID[id]; if(!c) return;
-  if(S.wallet < c.price){ toast("Not enough balance","err"); return; }
-  S.wallet -= c.price;
+  const total = c.price + SHIP_FEE;
+  const a = S.ship || {};
+  const canPay = S.wallet >= total;
+  $("#sheet-body").innerHTML = `
+    <h2 style="font-family:var(--font-d);font-weight:700;font-size:20px;letter-spacing:-.01em;margin:2px 0 14px">Checkout</h2>
+    <div class="order" style="margin-bottom:14px">
+      <div class="oimg" style="${artStyle(c.type)}">${cardArtInner(c)}</div>
+      <div class="omid"><div class="nm">${esc(c.name)}</div><div class="sub">${esc(c.set)} · ${esc(c.grade)}</div></div>
+      <span class="price">${money(c.price)}</span>
+    </div>
+    <div class="co-sum">
+      <div class="co-line"><span>Item</span><span class="price">${money(c.price)}</span></div>
+      <div class="co-line"><span>Insured shipping</span><span class="price">${money(SHIP_FEE)}</span></div>
+      <div class="co-line total"><span>Total</span><span class="price">${money(total)}</span></div>
+    </div>
+    <div class="field"><label>Ship to</label>
+      <input class="inp" id="co-name" placeholder="Full name" value="${esc(a.name||'')}" style="margin-bottom:10px">
+      <input class="inp" id="co-addr" placeholder="Street address" value="${esc(a.addr||'')}" style="margin-bottom:10px">
+      <div class="co-grid" style="margin-bottom:10px">
+        <input class="inp" id="co-city" placeholder="City" value="${esc(a.city||'')}">
+        <input class="inp" id="co-state" placeholder="State / Region" value="${esc(a.state||'')}">
+      </div>
+      <div class="co-grid">
+        <input class="inp" id="co-zip" placeholder="ZIP / Postal" value="${esc(a.zip||'')}" inputmode="numeric">
+        <input class="inp" id="co-country" placeholder="Country" value="${esc(a.country||'United States')}">
+      </div>
+    </div>
+    <div class="co-badge">🔒 Demo checkout — no real card is charged. Ready to connect to Stripe Checkout for live payments.</div>
+    <button class="btn primary" data-placeorder="${c.id}" ${canPay?'':'disabled'}>${canPay?'Pay '+money(total):'Balance too low'}</button>`;
+  showSheet();
+}
+function placeOrder(id){
+  const c = CARD_BY_ID[id]; if(!c) return;
+  const total = c.price + SHIP_FEE;
+  const g = k => { const el=$("#"+k); return el?el.value.trim():""; };
+  const addr = {name:g("co-name"), addr:g("co-addr"), city:g("co-city"), state:g("co-state"), zip:g("co-zip"), country:g("co-country")};
+  if(!addr.name || !addr.addr || !addr.city || !addr.zip){ toast("Fill in your shipping address","err"); return; }
+  if(S.wallet < total){ toast("Balance too low","err"); return; }
+  S.wallet  -= total;
+  S.revenue += c.price * FEE_RATE;               // your 3% commission
   S.owned.push({cardId:id, cost:c.price});
-  S.revenue += c.price * FEE_RATE;          // 3% commission to the platform owner
+  S.ship = addr;
+  const eta = new Date(Date.now() + (3+Math.floor(Math.random()*3))*86400e3);
+  const order = {id:"PM-"+Math.random().toString(36).slice(2,8).toUpperCase(), cardId:id,
+    price:c.price, ship:SHIP_FEE, total, addr, placedAt:Date.now(), eta:eta.getTime(), status:"Preparing shipment"};
+  S.orders.unshift(order);
   save(); renderWallet(); renderMarket();
-  closeSheet();
-  toast("Bought "+c.name+" for "+money(c.price)+" ✓","win");
+  $("#sheet-body").innerHTML = `
+    <div class="empty" style="padding:28px 10px 6px"><div class="ico">📦</div>
+      <h3>Order confirmed</h3><p>Your card is on its way to ${esc(addr.city)}.</p></div>
+    <div class="co-sum">
+      <div class="co-line"><span>Order</span><span class="price">#${order.id}</span></div>
+      <div class="co-line"><span>${esc(c.name)}</span><span class="price">${money(c.price)}</span></div>
+      <div class="co-line"><span>Insured shipping</span><span class="price">${money(SHIP_FEE)}</span></div>
+      <div class="co-line total"><span>Paid</span><span class="price">${money(total)}</span></div>
+    </div>
+    <div class="co-badge">🚚 Est. delivery ${eta.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})} · tracked & insured</div>
+    <div class="dactions">
+      <button class="btn ghost" data-closesheet="1">Keep shopping</button>
+      <button class="btn primary" data-vieworders="1">Track order</button>
+    </div>`;
+  toast("Order placed · "+order.id,"win");
 }
 function toggleWatch(id){
   const i = S.watch.indexOf(id);
@@ -768,7 +959,7 @@ function renderAuctions(){
     else if(a.leaderYou) status = `<span class="winning">Winning</span>`;
     else if(a.bids.some(b=>b.you)) status = `<span class="winning outbid">Outbid</span>`;
     return `<button class="acard" data-auc="${a.id}">
-      <div class="athumb" style="${artStyle(c.type)}"><span class="glyph">${c.glyph}</span></div>
+      <div class="athumb" style="${artStyle(c.type)}">${cardArtInner(c)}</div>
       <div class="ainfo">
         <span class="nm">${esc(c.name)}</span>
         <span class="set">${esc(c.set)} · ${a.bids.length} bids</span>
@@ -805,7 +996,7 @@ function renderSell(){
       <div class="selrow" id="sell-row">
         ${uniq.map(id=>{ const cc=CARD_BY_ID[id];
           return `<button class="selcard ${id===sellSel?'on':''}" data-sell="${id}">
-            <div class="art" style="${artStyle(cc.type)}"><span class="glyph">${cc.glyph}</span></div>
+            <div class="art" style="${artStyle(cc.type)}">${cardArtInner(cc)}</div>
             <div class="cap"><div class="nm">${esc(cc.name)}</div><div class="price">${money(cc.price)}</div></div>
           </button>`;}).join("")}
       </div>
@@ -822,6 +1013,7 @@ function renderSell(){
       <div class="moneyin"><span>$</span><input id="sell-price" type="number" inputmode="decimal" value="${suggest}" min="1" step="1"></div>
       <p style="font-size:11.5px;color:var(--faint);margin:8px 2px 0">Market value ${money(c.price)}. ${sellMode==='fixed'?'PokéMarket commission 3% on sale.':'Runs for 24h · 3% commission on final price.'}</p>
     </div>
+    <div class="co-badge">📮 When it sells we email a prepaid, insured shipping label — drop it in the mail and we handle the rest.</div>
     <button class="btn primary" id="list-btn">${sellMode==='fixed'?'List for '+money(suggest):'Start auction at '+money(suggest)}</button>
     <p style="text-align:center;font-size:12px;color:var(--faint);margin:12px 0 0">You'll receive ${money(suggest*(1-FEE_RATE))} after the 3% fee if it sells.</p>
   `;
@@ -897,7 +1089,7 @@ function renderPortfolio(){
       const c=CARD_BY_ID[id]; const qty=arr.length;
       const basis=arr.reduce((s,o)=>s+o.cost,0)/qty; const diff=c.price-basis;
       return `<button class="hold" data-card="${id}">
-        <div class="htb" style="${artStyle(c.type)}"><span class="glyph">${c.glyph}</span></div>
+        <div class="htb" style="${artStyle(c.type)}">${cardArtInner(c)}</div>
         <div class="hmid"><div class="nm">${esc(c.name)}${qty>1?` ×${qty}`:''}</div>
           <div class="set">${esc(c.set)} · avg ${money(basis)}</div></div>
         <div class="hend"><span class="price">${money(c.price)}</span>
@@ -905,9 +1097,17 @@ function renderPortfolio(){
       </button>`;}).join("")
       : `<div class="empty"><div class="ico">📦</div><h3>No cards yet</h3><p>Buy from the market to start your collection.</p></div>`}
 
+    ${S.orders && S.orders.length ? `<div class="section-h"><h2>Incoming shipments</h2><span class="link">${S.orders.length}</span></div>
+      ${S.orders.map(o=>{ const c=CARD_BY_ID[o.cardId]; const eta=new Date(o.eta);
+        return `<div class="order">
+          <div class="oimg" style="${artStyle(c.type)}">${cardArtInner(c)}</div>
+          <div class="omid"><div class="nm">${esc(c.name)}</div>
+            <div class="sub">#${o.id} · ${esc(o.addr.city)} · ETA ${eta.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div></div>
+          <span class="ostatus">${esc(o.status)}</span></div>`;}).join("")}` : ''}
+
     ${watchCards.length?`<div class="section-h"><h2>Watchlist</h2><span class="link">${watchCards.length}</span></div>
       ${watchCards.map(c=>`<button class="hold" data-card="${c.id}">
-        <div class="htb" style="${artStyle(c.type)}"><span class="glyph">${c.glyph}</span></div>
+        <div class="htb" style="${artStyle(c.type)}">${cardArtInner(c)}</div>
         <div class="hmid"><div class="nm">${esc(c.name)}</div><div class="set">${esc(c.set)}</div></div>
         <div class="hend"><span class="price">${money(c.price)}</span>${deltaHTML(c.chg)}</div>
       </button>`).join("")}`:''}
@@ -949,7 +1149,10 @@ document.addEventListener("click", e=>{
 });
 
 $("#sheet-body").addEventListener("click", e=>{
-  const buyb = e.target.closest("[data-buy]"); if(buyb){ buy(buyb.dataset.buy); return; }
+  const buyb = e.target.closest("[data-buy]"); if(buyb){ openCheckout(buyb.dataset.buy); return; }
+  const po = e.target.closest("[data-placeorder]"); if(po){ placeOrder(po.dataset.placeorder); return; }
+  if(e.target.closest("[data-closesheet]")){ closeSheet(); return; }
+  if(e.target.closest("[data-vieworders]")){ closeSheet(); switchTab("portfolio"); return; }
   const w2 = e.target.closest("[data-watch2]"); if(w2){ toggleWatch(w2.dataset.watch2); openCard(w2.dataset.watch2); return; }
   const pb = e.target.closest("[data-placebid]"); if(pb){ placeBid(pb.dataset.placebid); return; }
   const adj = e.target.closest("[data-bidadj]");
@@ -998,6 +1201,7 @@ $("#theme-btn").addEventListener("click", ()=>{
    ============================================================ */
 renderWallet();
 renderMarket();
+fetchLive();   // pull live prices + real card photos (falls back to samples if blocked)
 </script>
 </body>
 </html>
