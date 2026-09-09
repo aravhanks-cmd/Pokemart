@@ -1109,14 +1109,14 @@ function matchCard(text){
 }
 // Pull the likely Pokémon name out of OCR text (top lines, minus card boilerplate).
 function parseName(text){
-  const noise = /\b(basic|stage|hp|ability|evolves|from|pok[eé]mon|trainer|energy|single|strike|rapid|fusion|dynamax|gigantamax|vmax|vstar|tera|the|and|does|damage|attack|coin|flip|rule|weakness|resistance|retreat)\b/gi;
-  const lines = text.split(/\n/).map(l=>l.trim()).filter(Boolean);
-  for(const line of lines.slice(0,4)){
-    const cleaned = line.replace(noise," ").replace(/[^A-Za-z' .-]/g," ").replace(/\s+/g," ").trim();
-    const toks = cleaned.split(" ").filter(t=>t.replace(/[^A-Za-z]/g,"").length>=3);
-    if(toks.length) return toks.slice(0,2).join(" ").trim();
+  const noise = /\b(basic|stage|hp|hpd|ability|evolves|from|pok[eé]mon|trainer|energy|single|strike|rapid|fusion|dynamax|gigantamax|vmax|vstar|gx|ex|tera|lv|the|and|does|damage|attack|coin|flip|rule|weakness|resistance|retreat|put|onto|your|this)\b/gi;
+  const lines = text.split(/\n/).map(l=>l.trim()).filter(Boolean).slice(0,4);
+  let best = "";
+  for(const line of lines){
+    const cleaned = line.replace(noise, " ").replace(/[^A-Za-z]/g, " ");
+    cleaned.split(/\s+/).forEach(t=>{ if(t.length > best.length) best = t; });
   }
-  return null;
+  return best.length >= 3 ? best : null;   // single most-likely Pokémon word
 }
 // Collector number like "121/159" -> "121"
 function parseNumber(text){
