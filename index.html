@@ -446,7 +446,7 @@ input{font-family:inherit}
       </button>
       <button class="modecard" data-gomode="real">
         <div class="modeic" style="background:var(--gold-soft);color:var(--gold)">💵</div>
-        <div class="modetxt"><div class="mt">Real market <span class="soon">Soon</span></div><div class="ms">Buy &amp; sell real cards, shipped to you.</div></div>
+        <div class="modetxt"><div class="mt">Real market</div><div class="ms">Real cards, real money, shipped to you.</div></div>
         <div class="modego">›</div>
       </button>
       <button class="modecard" data-openscan="1">
@@ -456,20 +456,12 @@ input{font-family:inherit}
       </button>
     </section>
 
-    <!-- REAL (coming soon) -->
+    <!-- REAL market -->
     <section class="view" id="view-real">
-      <div class="empty" style="padding:48px 24px">
-        <div class="ico">🔒</div>
-        <h3>Real market — coming soon</h3>
-        <p>Real-money buying, selling and auctions with cards shipped to your door. We're building it.</p>
-      </div>
-      <div class="soonlist">
-        <div class="soonrow"><span>💳</span><div><b>Real payments</b><br><span>Secure checkout, real card values</span></div></div>
-        <div class="soonrow"><span>📦</span><div><b>Shipped to you</b><br><span>Tracked, insured delivery</span></div></div>
-        <div class="soonrow"><span>💸</span><div><b>Seller payouts</b><br><span>Cash out when your cards sell</span></div></div>
-      </div>
-      <button class="btn primary" data-notify="1" style="margin-top:18px">Notify me when it's live</button>
-      <button class="btn ghost" data-gomode="game" style="margin-top:10px">Back to game market</button>
+      <p class="eyebrow">💵 Real money · secure checkout by Stripe</p>
+      <div id="real-setup"></div>
+      <div class="section-h"><h2>Real cards</h2><span class="link" id="real-count"></span></div>
+      <div id="real-grid"></div>
     </section>
 
     <!-- MARKET -->
@@ -860,9 +852,57 @@ function setMode(m){
     const el = $("#view-"+m); if(el) el.classList.add("active");
     $("#scroll").scrollTop = 0;
     if(m==="home") renderHome();
+    if(m==="real") renderReal();
   }
 }
 function renderHome(){ const el=$("#home-bal"); if(el) el.textContent = money(S.wallet); }
+
+/* ---------- Real market (Stripe payment links) ---------- */
+// Paste your Stripe Payment Link URLs here, e.g.
+//   "charizard-ex": "https://buy.stripe.com/xxxxxxxx"
+const STRIPE_LINKS = {
+};
+function renderReal(){
+  const configured = Object.keys(STRIPE_LINKS).length > 0;
+  $("#real-setup").innerHTML = configured ? "" : `
+    <div class="soonrow" style="align-items:flex-start;border-color:var(--gold);background:var(--gold-soft)">
+      <span>⚙️</span>
+      <div><b>Turn on real payments</b><br>
+        <span>Create free Stripe payment links and paste them in — then Buy charges real money and Stripe collects the shipping address.</span>
+        <div style="margin-top:10px"><button class="btn gold" data-stripehelp="1" style="width:auto;padding:8px 14px;font-size:13px">How to set up Stripe →</button></div>
+      </div>
+    </div>`;
+  $("#real-count").textContent = CARDS.length + " cards";
+  $("#real-grid").innerHTML = CARDS.map(c=>{
+    const link = STRIPE_LINKS[c.id];
+    return `<div class="order">
+      <div class="oimg" style="${artStyle(c.type)}">${cardArtInner(c,true)}</div>
+      <div class="omid"><div class="nm">${esc(c.name)}</div><div class="sub">${esc(c.set)} · ${esc(c.grade)}</div>
+        <div class="price" style="margin-top:3px">${money(c.price)}</div></div>
+      <button class="btn ${link?'primary':'ghost'}" style="width:auto;padding:10px 15px;font-size:13px;flex:0 0 auto" data-realbuy="${c.id}">${link?'Buy':'Soon'}</button>
+    </div>`;
+  }).join("");
+}
+function realBuy(id){
+  const link = STRIPE_LINKS[id];
+  if(link){ window.open(link, "_blank", "noopener"); }
+  else { openStripeHelp(); }
+}
+function openStripeHelp(){
+  $("#sheet-body").innerHTML = `
+    <h2 style="font-family:var(--font-d);font-weight:700;font-size:20px;margin:2px 0 6px">Set up real payments</h2>
+    <p style="color:var(--muted);font-size:13.5px;margin:0 0 14px">Stripe handles the card, the shipping address, and the receipt. No backend needed.</p>
+    <ol style="margin:0 0 14px;padding-left:20px;font-size:14px;line-height:1.6">
+      <li>Create a free account at <b>stripe.com</b> (needs your bank details &amp; ID to receive money).</li>
+      <li>In the Stripe Dashboard → <b>Product catalog</b>, add a product for a card with its price.</li>
+      <li>On that product, click <b>Create payment link</b>. Under the link's options, turn on <b>Collect customers' shipping addresses</b>.</li>
+      <li>Copy the link (looks like <code>https://buy.stripe.com/…</code>).</li>
+      <li>Send me the card + its link and I'll wire the Buy button to it — or paste it into <code>STRIPE_LINKS</code> in the code.</li>
+    </ol>
+    <div class="co-badge">⚠️ Selling real cards means real fulfillment: you pack &amp; ship each sale. Stripe fees ~2.9% + 30¢ apply.</div>
+    <button class="btn primary" data-closesheet="1">Got it</button>`;
+  showSheet();
+}
 
 /* ============================================================
    Render: Market
@@ -1568,6 +1608,8 @@ document.addEventListener("click", e=>{
   const gm=e.target.closest("[data-gomode]"); if(gm){ setMode(gm.dataset.gomode); return; }
   const os=e.target.closest("[data-openscan]"); if(os){ openScanner(); return; }
   const nt=e.target.closest("[data-notify]"); if(nt){ toast("You're on the list! We'll ping you when Real goes live 🎉","win"); return; }
+  const rb=e.target.closest("[data-realbuy]"); if(rb){ realBuy(rb.dataset.realbuy); return; }
+  const sh=e.target.closest("[data-stripehelp]"); if(sh){ openStripeHelp(); return; }
 });
 
 document.addEventListener("click", e=>{
