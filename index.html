@@ -875,18 +875,35 @@ function renderReal(){
   $("#real-count").textContent = CARDS.length + " cards";
   $("#real-grid").innerHTML = CARDS.map(c=>{
     const link = STRIPE_LINKS[c.id];
-    return `<div class="order">
+    return `<button class="order" data-realbuy="${c.id}" style="width:100%;text-align:left;cursor:pointer">
       <div class="oimg" style="${artStyle(c.type)}">${cardArtInner(c,true)}</div>
       <div class="omid"><div class="nm">${esc(c.name)}</div><div class="sub">${esc(c.set)} · ${esc(c.grade)}</div>
         <div class="price" style="margin-top:3px">${money(c.price)}</div></div>
-      <button class="btn ${link?'primary':'ghost'}" style="width:auto;padding:10px 15px;font-size:13px;flex:0 0 auto" data-realbuy="${c.id}">${link?'Buy':'Soon'}</button>
-    </div>`;
+      <span class="btn ${link?'primary':'ghost'}" style="width:auto;padding:10px 15px;font-size:13px;flex:0 0 auto;pointer-events:none">${link?'Buy':'Soon'}</span>
+    </button>`;
   }).join("");
 }
 function realBuy(id){
+  const c = CARD_BY_ID[id]; if(!c) return;
   const link = STRIPE_LINKS[id];
-  if(link){ window.open(link, "_blank", "noopener"); }
-  else { openStripeHelp(); }
+  if(link){ window.open(link, "_blank", "noopener"); return; }
+  // no Stripe link yet — show a card-specific sheet
+  $("#sheet-body").innerHTML = `
+    <div class="dhead">
+      <div class="dbig" style="${artStyle(c.type)}">${cardArtInner(c)}</div>
+      <div class="dtitle">
+        <div class="nm">${esc(c.name)}</div>
+        <div class="set">${esc(c.set)} · ${esc(c.num)}</div>
+        <div class="dprice"><span class="price">${money(c.price)}</span>
+          <span style="font-size:11px;color:var(--faint);font-weight:700">real market</span></div>
+      </div>
+    </div>
+    <div class="co-badge">💳 Real checkout for this card isn't connected yet. Add its Stripe payment link to enable Buy.</div>
+    <div class="dactions">
+      <button class="btn ghost" data-closesheet="1">Close</button>
+      <button class="btn gold" data-stripehelp="1">Set up Stripe</button>
+    </div>`;
+  showSheet();
 }
 function openStripeHelp(){
   $("#sheet-body").innerHTML = `
