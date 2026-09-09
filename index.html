@@ -866,10 +866,10 @@ function renderReal(){
   const configured = Object.keys(STRIPE_LINKS).length > 0;
   $("#real-setup").innerHTML = configured ? "" : `
     <div class="soonrow" style="align-items:flex-start;border-color:var(--gold);background:var(--gold-soft)">
-      <span>🛒</span>
-      <div><b>Buy takes you to TCGplayer</b><br>
-        <span>Tap any card to buy the real thing on TCGplayer. Want to sell your <i>own</i> cards for real money? Connect Stripe.</span>
-        <div style="margin-top:10px"><button class="btn gold" data-stripehelp="1" style="width:auto;padding:8px 14px;font-size:13px">Set up Stripe to sell →</button></div>
+      <span>💰</span>
+      <div><b>Get paid for your cards</b><br>
+        <span>Connect your Stripe account so buyers pay you directly and the money lands in your balance. It's the only way the cash comes to you.</span>
+        <div style="margin-top:10px"><button class="btn gold" data-stripehelp="1" style="width:auto;padding:8px 14px;font-size:13px">Connect Stripe →</button></div>
       </div>
     </div>`;
   $("#real-count").textContent = CARDS.length + " cards";
@@ -886,10 +886,23 @@ function renderReal(){
 function realBuy(id){
   const c = CARD_BY_ID[id]; if(!c) return;
   const link = STRIPE_LINKS[id];
-  if(link){ window.open(link, "_blank", "noopener"); return; }
-  // no Stripe link — open the real card on TCGplayer to buy for real
-  const q = encodeURIComponent(`${c.name} ${c.set}`);
-  window.open(`https://www.tcgplayer.com/search/pokemon/product?q=${q}&view=grid`, "_blank", "noopener");
+  if(link){ window.open(link, "_blank", "noopener"); return; }   // buyer pays you via your Stripe
+  $("#sheet-body").innerHTML = `
+    <div class="dhead">
+      <div class="dbig" style="${artStyle(c.type)}">${cardArtInner(c)}</div>
+      <div class="dtitle">
+        <div class="nm">${esc(c.name)}</div>
+        <div class="set">${esc(c.set)} · ${esc(c.num)}</div>
+        <div class="dprice"><span class="price">${money(c.price)}</span>
+          <span style="font-size:11px;color:var(--faint);font-weight:700">real market</span></div>
+      </div>
+    </div>
+    <div class="co-badge">💰 To sell this card and get paid, connect your Stripe account. Buyers check out securely and the money lands in your Stripe balance.</div>
+    <div class="dactions">
+      <button class="btn ghost" data-closesheet="1">Close</button>
+      <button class="btn gold" data-stripehelp="1">Connect Stripe</button>
+    </div>`;
+  showSheet();
 }
 function openStripeHelp(){
   $("#sheet-body").innerHTML = `
