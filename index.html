@@ -798,19 +798,25 @@ async function fetchLive(force){
   }
   setLiveStatus("loading", "Fetching live prices…");
   const results = {};
-  await Promise.all(CARDS.map(async c=>{
-    const m = API_MAP[c.id] || {name:c.name, set:c.set};
-    let card = await apiFetch(`name:"${m.name}" set.name:"${m.set}"`);
-    if(!card) card = await apiFetch(`name:"${m.name}"`);
-    if(!card) return;
-    const price = extractPrice(card);
-    const img  = card.images && card.images.large;
-    const imgS = card.images && card.images.small;
-    if(price || imgS) results[c.id] = {
-      price: price || (prev[c.id] && prev[c.id].price) || c.price,
-      img, imgS
-    };
-  }));
+  // Throttled: at most 3 requests at a time, one query per card, so we don't
+  // trip the card database's rate limit (which also starved the scanner).
+  const queue = CARDS.slice();
+  async function worker(){
+    while(queue.length){
+      const c = queue.shift();
+      const m = API_MAP[c.id] || {name:c.name, set:c.set};
+      const card = await apiFetch(`name:"${m.name}" set.name:"${m.set}"`);
+      if(!card) continue;
+      const price = extractPrice(card);
+      const img  = card.images && card.images.large;
+      const imgS = card.images && card.images.small;
+      if(price || imgS) results[c.id] = {
+        price: price || (prev[c.id] && prev[c.id].price) || c.price,
+        img, imgS
+      };
+    }
+  }
+  await Promise.all([worker(), worker(), worker()]);
   if(Object.keys(results).length){
     applyLive(results, prev, true);
     try{ localStorage.setItem(LIVE_KEY, JSON.stringify({ts:Date.now(), prices:results})); }catch(e){}
@@ -1052,24 +1058,37 @@ async function captureScan(){
     cv.getContext("2d").drawImage(v, 0, 0, w, h);
     const { data } = await Tesseract.recognize(cv, "eng");
     const text = (data && data.text || "");
+    const readLine = (text.split(/\n/).map(l=>l.trim()).filter(Boolean)[0] || "").slice(0,28);
     // 1) marketplace cards first — opens the in-app card with Buy
     const local = matchCard(text.toLowerCase());
     if(local){ stopCamera(); showScanResult(local); scanBusy=false; return; }
     // 2) any real card, via the Pokémon TCG database
     const name = parseName(text), number = parseNumber(text);
     if(!name && !number){
-      setScanStatus("Couldn't read the card. Fill the frame, cut glare, hold steady — then try again.");
+      setScanStatus(`Couldn't read any text${readLine?` (saw: “${esc(readLine)}”)`:""}. More light, less glare, hold steady — try again.`);
       if(btn) btn.disabled=false; scanBusy=false; return;
     }
     setScanStatus(`<span class="scanning"><span class="spin"></span> Looking up ${esc(name||("#"+number))}…</span>`);
-    const card = await scanLookup(name, number);
-    if(card){ stopCamera(); showScanResultAPI(card); }
+    const res = await scanLookup(name, number);
+    if(res.card){ stopCamera(); showScanResultAPI(res.card); }
+    else if(res.err==="http" && res.status===429){
+      setScanStatus(`Card database is busy (rate-limited). Wait ~30s, then scan again. (read “${esc(name||number)}”)`);
+      if(btn) btn.disabled=false;
+    }
+    else if(res.err==="http"){
+      setScanStatus(`Database error ${res.status}. Try again in a moment. (read “${esc(name||number)}”)`);
+      if(btn) btn.disabled=false;
+    }
+    else if(res.err==="network"){
+      setScanStatus(`Couldn't reach the card database — check your connection and retry. (read “${esc(name||number)}”)`);
+      if(btn) btn.disabled=false;
+    }
     else {
-      setScanStatus(`Read “${esc(name||number)}” but couldn't find it in the database. Try again with better light.`);
+      setScanStatus(`Read “${esc(name||number)}” but found no match. Try a straighter, clearer shot.`);
       if(btn) btn.disabled=false;
     }
   }catch(e){
-    setScanStatus("Scan failed. It needs to reach the card database — check your connection and retry.");
+    setScanStatus("Scan error: "+esc((e&&e.message)||String(e)).slice(0,80));
     const b=$("#scan-btn"); if(b) b.disabled=false;
   }
   scanBusy = false;
@@ -1102,14 +1121,28 @@ function parseNumber(text){
   const m = text.replace(/\s+/g,"").match(/(\d{1,3})\/(\d{1,3})/);
   return m ? m[1] : null;
 }
+async function apiCardLookup(q){
+  const url = "https://api.pokemontcg.io/v2/cards?pageSize=1&select=id,name,number,set,images,tcgplayer,cardmarket&q=" + encodeURIComponent(q);
+  const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(), 12000);
+  try{
+    const r = await fetch(url, {signal:ctl.signal}); clearTimeout(t);
+    if(!r.ok) return {err:"http", status:r.status};
+    const j = await r.json(); return {card:(j.data && j.data[0]) || null};
+  }catch(e){ clearTimeout(t); return {err:"network"}; }
+}
 async function scanLookup(name, number){
-  const q = [];
-  if(name)   q.push(`name:"${name.replace(/"/g,"")}"`);
-  if(number) q.push(`number:${number}`);
-  if(!q.length) return null;
-  let card = await apiFetch(q.join(" "));
-  if(!card && name && number) card = await apiFetch(`name:"${name.replace(/"/g,"")}"`);
-  return card;
+  const nm = name ? name.replace(/"/g,"") : "";
+  const queries = [];
+  if(nm && number) queries.push(`name:"${nm}" number:${number}`);
+  if(nm)           queries.push(`name:"${nm}"`);
+  if(!nm && number) queries.push(`number:${number}`);
+  let lastErr = {err:"none"};
+  for(const q of queries){
+    const r = await apiCardLookup(q);
+    if(r.card) return r;
+    if(r.err) lastErr = r;   // remember the failure reason to report
+  }
+  return lastErr;
 }
 function showScanResult(c){
   $("#sheet-body").innerHTML = `
