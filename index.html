@@ -427,7 +427,7 @@ input{font-family:inherit}
         <button class="modebtn" data-mode="home">🏠 Home</button>
         <button class="modebtn on" data-mode="game">🎮 Game</button>
         <button class="modebtn" data-mode="real">💵 Real</button>
-        <button class="modebtn" data-action="scan">🔎 Scan</button>
+        <button class="modebtn" data-action="identify">🔎 Identify</button>
       </div>
     </div>
 
@@ -449,9 +449,9 @@ input{font-family:inherit}
         <div class="modetxt"><div class="mt">Real market</div><div class="ms">Real cards, real money, shipped to you.</div></div>
         <div class="modego">›</div>
       </button>
-      <button class="modecard" data-openscan="1">
+      <button class="modecard" data-openidentify="1">
         <div class="modeic" style="background:var(--surface-2)">🔎</div>
-        <div class="modetxt"><div class="mt">Scan a card</div><div class="ms">Identify any card and see its price.</div></div>
+        <div class="modetxt"><div class="mt">Identify a card</div><div class="ms">Scan with your camera or enter it manually.</div></div>
         <div class="modego">›</div>
       </button>
     </section>
@@ -1176,6 +1176,58 @@ async function startCamera(){
 }
 function stopCamera(){ if(scanStream){ scanStream.getTracks().forEach(t=>t.stop()); scanStream=null; } }
 function setScanStatus(html){ const s=$("#scan-status"); if(s) s.innerHTML = html; }
+// Identify menu: choose Scanner (camera) or Manual (type it in)
+function openIdentify(){
+  $("#sheet-body").innerHTML = `
+    <h2 style="font-family:var(--font-d);font-weight:700;font-size:20px;margin:2px 0 14px">Identify a card</h2>
+    <button class="modecard" data-openscan="1">
+      <div class="modeic" style="background:var(--accent-soft);color:var(--accent)">📷</div>
+      <div class="modetxt"><div class="mt">Scanner</div><div class="ms">Point your camera at the card.</div></div>
+      <div class="modego">›</div>
+    </button>
+    <button class="modecard" data-manual="1">
+      <div class="modeic" style="background:var(--surface-2)">⌨️</div>
+      <div class="modetxt"><div class="mt">Manual</div><div class="ms">Type the card name to find it.</div></div>
+      <div class="modego">›</div>
+    </button>
+    <button class="btn ghost" data-closesheet="1" style="margin-top:6px">Cancel</button>`;
+  showSheet();
+}
+function openManual(prev){
+  prev = prev || {};
+  $("#sheet-body").innerHTML = `
+    <h2 style="font-family:var(--font-d);font-weight:700;font-size:20px;margin:2px 0 6px">Identify manually</h2>
+    <p style="color:var(--muted);font-size:13.5px;margin:0 0 14px">Enter what you can read off the card — number &amp; date pin the exact printing.</p>
+    <div class="field"><label>Name</label>
+      <input class="inp" id="man-name" placeholder="e.g. Raichu" value="${esc(prev.name||'')}" autocomplete="off"></div>
+    <div class="co-grid" style="margin-bottom:14px">
+      <div><label style="display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:700;margin-bottom:7px">Number</label>
+        <input class="inp" id="man-num" placeholder="e.g. 14/102" value="${esc(prev.num||'')}" autocomplete="off"></div>
+      <div><label style="display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:700;margin-bottom:7px">Year</label>
+        <input class="inp" id="man-year" inputmode="numeric" placeholder="e.g. 1999" value="${esc(prev.year||'')}" autocomplete="off"></div>
+    </div>
+    <button class="btn primary" data-manualsearch="1">Find card</button>
+    <button class="btn ghost" data-openidentify="1" style="margin-top:10px">Back</button>`;
+  showSheet();
+  setTimeout(()=>{ const i=$("#man-name"); if(i) i.focus(); }, 120);
+}
+async function manualSearch(){
+  const name = (($("#man-name")||{}).value || "").trim();
+  const numRaw = (($("#man-num")||{}).value || "").trim();
+  const yearRaw = (($("#man-year")||{}).value || "").trim();
+  if(name.length < 2){ toast("Enter a card name","err"); return; }
+  const nm = numRaw.match(/(\d{1,3})\s*\/\s*(\d{1,3})/);
+  const number = nm ? nm[1] : (numRaw.match(/\d{1,3}/)||[null])[0];
+  const total  = nm ? nm[2] : null;
+  const year   = (yearRaw.match(/\b(19|20)\d{2}\b/)||[null])[0];
+  $("#sheet-body").innerHTML = `<div class="empty" style="padding:44px"><div class="ico">🔎</div><p>Finding “${esc(name)}”…</p></div>`;
+  const res = await apiSearch(name);
+  if(res && res.err){ toast("Search unavailable — try again","err"); openManual({name,num:numRaw,year:yearRaw}); return; }
+  if(!res || !res.length){ toast("No cards found for that name","err"); openManual({name,num:numRaw,year:yearRaw}); return; }
+  const ranked = rankScan(res, number, total, year);
+  if(ranked.exact) showScanResultAPI(ranked.list[0], {number,total,year});
+  else showScanResults(ranked.list, number);
+}
 // Crop a region, upscale, and boost contrast to grayscale — OCR reads this much better.
 function prepCanvas(src, sx, sy, sw, sh, scale){
   const c = document.createElement("canvas");
@@ -1716,10 +1768,13 @@ $("#nav").addEventListener("click", e=>{ const b=e.target.closest(".navbtn"); if
   if(b.dataset.action==="scan"){ openScanner(); } else if(b.dataset.tab){ switchTab(b.dataset.tab); } });
 
 $("#modebar").addEventListener("click", e=>{ const b=e.target.closest(".modebtn"); if(!b) return;
-  if(b.dataset.action==="scan"){ openScanner(); } else if(b.dataset.mode){ setMode(b.dataset.mode); } });
+  if(b.dataset.action==="identify"){ openIdentify(); } else if(b.dataset.mode){ setMode(b.dataset.mode); } });
 document.addEventListener("click", e=>{
   const gm=e.target.closest("[data-gomode]"); if(gm){ setMode(gm.dataset.gomode); return; }
   const os=e.target.closest("[data-openscan]"); if(os){ openScanner(); return; }
+  const oi=e.target.closest("[data-openidentify]"); if(oi){ openIdentify(); return; }
+  const mn=e.target.closest("[data-manual]"); if(mn){ openManual(); return; }
+  const msb=e.target.closest("[data-manualsearch]"); if(msb){ manualSearch(); return; }
   const nt=e.target.closest("[data-notify]"); if(nt){ toast("You're on the list! We'll ping you when Real goes live 🎉","win"); return; }
   const rb=e.target.closest("[data-realbuy]"); if(rb){ realBuy(rb.dataset.realbuy); return; }
   const sh=e.target.closest("[data-stripehelp]"); if(sh){ openStripeHelp(); return; }
