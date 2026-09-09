@@ -996,7 +996,7 @@ function apiToCard(ac){
   return c;
 }
 async function apiSearchOnce(qexpr){
-  const url = "https://api.pokemontcg.io/v2/cards?pageSize=24&orderBy=-set.releaseDate&select=id,name,number,set,images,tcgplayer,cardmarket,rarity,types&q=" + encodeURIComponent(qexpr);
+  const url = "https://api.pokemontcg.io/v2/cards?pageSize=60&orderBy=-set.releaseDate&select=id,name,number,set,images,tcgplayer,cardmarket,rarity,types&q=" + encodeURIComponent(qexpr);
   const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(), 12000);
   try{
     const r = await fetch(url, {signal:ctl.signal}); clearTimeout(t);
@@ -1176,6 +1176,24 @@ async function startCamera(){
 }
 function stopCamera(){ if(scanStream){ scanStream.getTracks().forEach(t=>t.stop()); scanStream=null; } }
 function setScanStatus(html){ const s=$("#scan-status"); if(s) s.innerHTML = html; }
+// Crop a region, upscale, and boost contrast to grayscale — OCR reads this much better.
+function prepCanvas(src, sx, sy, sw, sh, scale){
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(sw*scale)); c.height = Math.max(1, Math.round(sh*scale));
+  const x = c.getContext("2d");
+  x.drawImage(src, sx, sy, sw, sh, 0, 0, c.width, c.height);
+  try{
+    const img = x.getImageData(0,0,c.width,c.height), d = img.data;
+    const contrast = 1.7, intercept = 128*(1-contrast);
+    for(let i=0;i<d.length;i+=4){
+      let g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+      g = g*contrast + intercept;
+      d[i]=d[i+1]=d[i+2] = g<0?0:g>255?255:g;
+    }
+    x.putImageData(img,0,0);
+  }catch(e){}
+  return c;
+}
 async function captureScan(){
   if(scanBusy) return;
   const v = $("#scan-video");
@@ -1194,16 +1212,26 @@ async function captureScan(){
     cv.getContext("2d").drawImage(v, gx, gy, gw, gh, 0, 0, gw, gh);
     const worker = await warmScanner();
     setScanStatus(`<span class="scanning"><span class="spin"></span> Reading card…</span>`);
-    // never hang forever — cap OCR at 30s
     const timeout = new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")), 30000));
-    const { data } = await Promise.race([ worker.recognize(cv), timeout ]);
-    const text = (data && data.text || "");
-    const readLine = (text.split(/\n/).map(l=>l.trim()).filter(Boolean)[0] || "").slice(0,28);
+    // Name from the TOP band, contrast-boosted + upscaled → far more reliable
+    const nameCv = prepCanvas(cv, 0, 0, gw, Math.round(gh*0.22), 3);
+    const rName = await Promise.race([ worker.recognize(nameCv), timeout ]);
+    const nameText = (rName && rName.data && rName.data.text) || "";
+    // Collector number + ©year from the BOTTOM band
+    let numText = "";
+    try{
+      const numCv = prepCanvas(cv, 0, Math.round(gh*0.72), gw, Math.round(gh*0.28), 3);
+      const rNum = await worker.recognize(numCv);
+      numText = (rNum && rNum.data && rNum.data.text) || "";
+    }catch(e){}
+    const text = nameText;
+    const readLine = (nameText.split(/\n/).map(l=>l.trim()).filter(Boolean)[0] || "").slice(0,28);
     // 1) marketplace cards first — opens the in-app card with Buy
-    const local = matchCard(text.toLowerCase());
+    const local = matchCard((nameText+" "+numText).toLowerCase());
     if(local){ stopCamera(); showScanResult(local); scanBusy=false; return; }
     // 2) any real card, via the Pokémon TCG database
-    const name = parseName(text), number = parseNumber(text), total = parseTotal(text), year = parseYear(text);
+    const meta = numText + "\n" + nameText;
+    const name = parseName(nameText), number = parseNumber(meta), total = parseTotal(meta), year = parseYear(meta);
     if(!name && !number){
       setScanStatus(`Couldn't read any text${readLine?` (saw: “${esc(readLine)}”)`:""}. More light, less glare, hold steady — try again.`);
       if(btn) btn.disabled=false; scanBusy=false; return;
@@ -1357,20 +1385,31 @@ function setScanBusyMsg(){ $("#sheet-body").innerHTML = `<div class="empty" styl
 function showScanResults(list, number){
   // exact collector-number matches first (best chance of the right printing)
   if(number) list = list.slice().sort((a,b)=> (String(b.number)===number) - (String(a.number)===number));
-  const rows = list.slice(0,14).map(ac=>{
+  const rows = list.slice(0,60).map(ac=>{
     const c = apiToCard(ac);
+    const yr = (ac.set && ac.set.releaseDate) ? " · "+ac.set.releaseDate.slice(0,4) : "";
     return `<button class="order" data-card="${c.id}" style="width:100%;text-align:left;cursor:pointer">
       <div class="oimg" style="background:#0d1016;width:46px;height:64px">${cardArtInner(c,true)}</div>
-      <div class="omid"><div class="nm">${esc(c.name)}</div><div class="sub">${esc(c.set)}${c.num?" · "+esc(c.num):""}</div></div>
+      <div class="omid"><div class="nm">${esc(c.name)}</div><div class="sub">${esc(c.set)}${c.num?" · "+esc(c.num):""}${yr}</div></div>
       <div style="text-align:right"><div class="price">${c.price?money(c.price):"—"}</div></div>
     </button>`;
   }).join("");
   $("#sheet-body").innerHTML = `
     <div class="empty" style="padding:14px 10px 2px"><div class="ico">🔍</div>
-      <h3>Found ${list.length} match${list.length>1?"es":""}</h3><p>Tap the exact card you scanned.</p></div>
-    ${rows}
+      <h3>Found ${list.length} match${list.length>1?"es":""}</h3><p>Filter by set or year, then tap your card.</p></div>
+    <div class="search" style="margin-bottom:10px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+      <input type="search" placeholder="e.g. base set, 1999, 14" autocomplete="off" oninput="filterScanRows(this.value)">
+    </div>
+    <div id="scan-list">${rows}</div>
     <button class="btn ghost" data-scanagain="1" style="margin-top:8px">Scan another card</button>`;
   showSheet();
+}
+function filterScanRows(q){
+  q = (q||"").toLowerCase().trim();
+  document.querySelectorAll("#scan-list .order").forEach(el=>{
+    el.style.display = (!q || el.textContent.toLowerCase().includes(q)) ? "" : "none";
+  });
 }
 function showScanResult(c, raw){
   $("#sheet-body").innerHTML = `
