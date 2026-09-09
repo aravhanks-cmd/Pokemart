@@ -1,0 +1,1003 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>PokéMarket</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+:root{
+  --ground:#f4f5f8; --surface:#ffffff; --surface-2:#eef0f5; --surface-3:#e6e9f0;
+  --line:#dce0ea; --line-soft:#e9ecf3;
+  --text:#141821; --muted:#5c6577; --faint:#8a93a6;
+  --accent:#e23b3b; --accent-ink:#ffffff; --accent-soft:#fdeaea;
+  --gold:#c98a12; --gold-soft:#fbf1dc;
+  --up:#149e63; --up-soft:#e0f5eb;
+  --down:#d8425a; --down-soft:#fce6ea;
+  --shadow:0 1px 2px rgba(16,22,38,.06),0 8px 24px rgba(16,22,38,.08);
+  --shadow-lg:0 12px 40px rgba(16,22,38,.16);
+  --sheen:linear-gradient(115deg,transparent 20%,rgba(255,255,255,.55) 38%,rgba(255,255,255,0) 52%);
+  --font-d:"Bricolage Grotesque",system-ui,sans-serif;
+  --font-b:"Figtree",system-ui,sans-serif;
+  --font-m:"JetBrains Mono",ui-monospace,monospace;
+}
+:root:not([data-theme="light"]){ color-scheme:dark; }
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0e1117; --surface:#171b24; --surface-2:#1f2530; --surface-3:#272e3b;
+    --line:#2b3340; --line-soft:#232a35;
+    --text:#e8ebf0; --muted:#98a1b3; --faint:#6b7385;
+    --accent:#ef4c4c; --accent-ink:#12060a; --accent-soft:#2a1618;
+    --gold:#f5b944; --gold-soft:#2c2413;
+    --up:#34d399; --up-soft:#12281f;
+    --down:#fb7185; --down-soft:#2a161b;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.45);
+    --shadow-lg:0 18px 50px rgba(0,0,0,.6);
+    --sheen:linear-gradient(115deg,transparent 20%,rgba(255,255,255,.28) 38%,rgba(255,255,255,0) 52%);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#0e1117; --surface:#171b24; --surface-2:#1f2530; --surface-3:#272e3b;
+  --line:#2b3340; --line-soft:#232a35;
+  --text:#e8ebf0; --muted:#98a1b3; --faint:#6b7385;
+  --accent:#ef4c4c; --accent-ink:#12060a; --accent-soft:#2a1618;
+  --gold:#f5b944; --gold-soft:#2c2413;
+  --up:#34d399; --up-soft:#12281f;
+  --down:#fb7185; --down-soft:#2a161b;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.45);
+  --shadow-lg:0 18px 50px rgba(0,0,0,.6);
+  --sheen:linear-gradient(115deg,transparent 20%,rgba(255,255,255,.28) 38%,rgba(255,255,255,0) 52%);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--ground); color:var(--text);
+  font-family:var(--font-b); font-size:15px; line-height:1.45;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  display:flex; justify-content:center; min-height:100dvh;
+}
+button{font-family:inherit; cursor:pointer; border:none; background:none; color:inherit}
+input{font-family:inherit}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:8px}
+::-webkit-scrollbar{width:0;height:0}
+
+/* ---------- phone frame ---------- */
+.app{
+  width:100%; max-width:440px; min-height:100dvh; position:relative;
+  background:var(--ground); display:flex; flex-direction:column;
+  box-shadow:0 0 0 1px var(--line-soft);
+}
+@media(min-width:520px){
+  body{align-items:center; padding:24px 0; background:
+    radial-gradient(1200px 600px at 50% -10%, color-mix(in srgb,var(--accent) 8%, transparent), transparent 60%), var(--ground);}
+  .app{min-height:auto; height:calc(100dvh - 48px); max-height:900px; border-radius:34px; overflow:hidden; box-shadow:var(--shadow-lg),0 0 0 1px var(--line);}
+}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:sticky; top:0; z-index:20; padding:14px 18px 12px;
+  background:color-mix(in srgb,var(--ground) 82%, transparent);
+  backdrop-filter:saturate(1.4) blur(14px); -webkit-backdrop-filter:saturate(1.4) blur(14px);
+  border-bottom:1px solid var(--line-soft);
+  display:flex; align-items:center; gap:12px;
+}
+.brand{display:flex; align-items:center; gap:9px; margin-right:auto}
+.pokeball{width:26px;height:26px;border-radius:50%;position:relative;flex:0 0 auto;
+  background:linear-gradient(180deg,var(--accent) 0 50%, #fff 50% 100%);
+  box-shadow:inset 0 0 0 2px rgba(0,0,0,.18), var(--shadow);}
+.pokeball::before{content:"";position:absolute;inset:0;border-radius:50%;
+  background:linear-gradient(transparent 44%, rgba(0,0,0,.25) 44% 56%, transparent 56%);}
+.pokeball::after{content:"";position:absolute;top:50%;left:50%;width:8px;height:8px;border-radius:50%;
+  transform:translate(-50%,-50%);background:#fff;box-shadow:0 0 0 2px rgba(0,0,0,.3), inset 0 0 0 2px var(--surface-3);}
+.brand h1{font-family:var(--font-d);font-weight:800;font-size:19px;letter-spacing:-.02em;margin:0}
+.brand h1 span{color:var(--accent)}
+.wallet{
+  display:flex;flex-direction:column;align-items:flex-end;line-height:1.1;
+  padding:6px 12px;border-radius:12px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);
+}
+.wallet .lbl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:700}
+.wallet .amt{font-family:var(--font-m);font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
+.iconbtn{width:38px;height:38px;border-radius:12px;background:var(--surface);border:1px solid var(--line);
+  display:grid;place-items:center;box-shadow:var(--shadow);font-size:16px}
+
+/* ---------- scroll area ---------- */
+.scroll{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:96px}
+.view{display:none;padding:16px 16px 8px;animation:fade .25s ease}
+.view.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.view,*{animation:none!important;transition:none!important}}
+
+.eyebrow{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);font-weight:700;margin:2px 0 10px}
+.section-h{display:flex;align-items:baseline;justify-content:space-between;margin:22px 2px 12px}
+.section-h h2{font-family:var(--font-d);font-weight:700;font-size:18px;letter-spacing:-.01em;margin:0}
+.section-h .link{font-size:12px;color:var(--accent);font-weight:700}
+
+/* ---------- search + chips ---------- */
+.search{display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--line);
+  border-radius:14px;padding:11px 13px;box-shadow:var(--shadow)}
+.search svg{flex:0 0 auto;color:var(--faint)}
+.search input{border:none;background:none;color:var(--text);width:100%;font-size:15px;outline:none}
+.search input::placeholder{color:var(--faint)}
+.chips{display:flex;gap:8px;overflow-x:auto;margin:12px -16px 4px;padding:2px 16px 6px;scroll-snap-type:x proximity}
+.chip{flex:0 0 auto;padding:7px 14px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line-soft);
+  font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap;transition:transform .12s,background .15s,color .15s}
+.chip:active{transform:scale(.95)}
+.chip.on{background:var(--text);color:var(--ground);border-color:var(--text)}
+
+/* ---------- market card grid ---------- */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.tcard{
+  position:relative;text-align:left;border-radius:16px;overflow:hidden;background:var(--surface);
+  border:1px solid var(--line);box-shadow:var(--shadow);transition:transform .12s ease;
+  display:flex;flex-direction:column;
+}
+.tcard:active{transform:scale(.975)}
+.tcard .art{position:relative;aspect-ratio:1/1;display:grid;place-items:center;overflow:hidden}
+.tcard .art .glyph{font-size:46px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.28));transform:translateY(-2px)}
+.tcard .art::after{content:"";position:absolute;inset:0;background:var(--sheen);
+  background-size:250% 250%;mix-blend-mode:screen;opacity:.8;pointer-events:none;
+  animation:sheen 4.5s ease-in-out infinite}
+@keyframes sheen{0%,100%{background-position:0% 0%}50%{background-position:100% 100%}}
+.rarity{position:absolute;top:8px;left:8px;display:flex;align-items:center;gap:4px;
+  padding:3px 8px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.02em;
+  background:rgba(0,0,0,.32);color:#fff;backdrop-filter:blur(4px)}
+.watch{position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(0,0,0,.3);color:#fff;font-size:14px;backdrop-filter:blur(4px)}
+.watch.on{color:var(--gold)}
+.tcard .meta{padding:10px 11px 12px;display:flex;flex-direction:column;gap:2px;flex:1}
+.tcard .nm{font-weight:700;font-size:13.5px;letter-spacing:-.01em;line-height:1.2}
+.tcard .set{font-size:10.5px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tcard .row{display:flex;align-items:baseline;justify-content:space-between;margin-top:6px;gap:6px}
+.price{font-family:var(--font-m);font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
+.delta{font-family:var(--font-m);font-size:11px;font-weight:700;padding:2px 6px;border-radius:6px;font-variant-numeric:tabular-nums}
+.delta.up{color:var(--up);background:var(--up-soft)}
+.delta.down{color:var(--down);background:var(--down-soft)}
+
+/* ---------- movers strip ---------- */
+.movers{display:flex;gap:10px;overflow-x:auto;margin:0 -16px;padding:2px 16px 8px}
+.mover{flex:0 0 auto;width:132px;border-radius:14px;background:var(--surface);border:1px solid var(--line);
+  box-shadow:var(--shadow);padding:10px;display:flex;flex-direction:column;gap:8px;text-align:left}
+.mover .mini{height:34px;width:100%}
+.mover .mnm{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mover .mrow{display:flex;align-items:baseline;justify-content:space-between;gap:4px}
+.mover .price{font-size:13px}
+
+/* ---------- auctions ---------- */
+.acard{display:flex;gap:13px;background:var(--surface);border:1px solid var(--line);border-radius:16px;
+  padding:12px;box-shadow:var(--shadow);margin-bottom:12px;align-items:center;text-align:left;width:100%}
+.acard:active{transform:scale(.99)}
+.athumb{width:70px;height:70px;flex:0 0 auto;border-radius:12px;display:grid;place-items:center;overflow:hidden;position:relative}
+.athumb .glyph{font-size:34px;filter:drop-shadow(0 4px 6px rgba(0,0,0,.3))}
+.ainfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.ainfo .nm{font-weight:700;font-size:14.5px;letter-spacing:-.01em}
+.ainfo .set{font-size:11px;color:var(--faint)}
+.bidrow{display:flex;align-items:baseline;gap:6px;margin-top:2px}
+.bidrow .price{font-size:16px}
+.bidrow .cap{font-size:10px;color:var(--faint);letter-spacing:.04em;text-transform:uppercase;font-weight:700}
+.timer{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:0 0 auto}
+.tpill{font-family:var(--font-m);font-weight:700;font-size:13px;padding:4px 8px;border-radius:8px;
+  background:var(--surface-2);color:var(--text);font-variant-numeric:tabular-nums}
+.tpill.hot{background:var(--accent-soft);color:var(--accent)}
+.tpill.ended{background:var(--surface-3);color:var(--muted)}
+.tcap{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:700}
+.winning{font-size:10px;font-weight:800;color:var(--up);letter-spacing:.04em;text-transform:uppercase}
+.outbid{color:var(--down)}
+
+/* ---------- generic tiles ---------- */
+.stat-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px 15px;box-shadow:var(--shadow)}
+.stat .lbl{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:700}
+.stat .big{font-family:var(--font-m);font-weight:700;font-size:22px;margin-top:6px;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.stat .sub{font-size:12px;margin-top:3px;font-weight:600}
+
+.hero{position:relative;border-radius:20px;padding:18px;overflow:hidden;color:#fff;box-shadow:var(--shadow);
+  background:linear-gradient(135deg,#ef4c4c,#b3232f 60%,#7a1620);margin-bottom:6px}
+.hero::after{content:"";position:absolute;inset:0;background:
+  radial-gradient(120px 120px at 85% 15%, rgba(255,255,255,.28), transparent 70%);pointer-events:none}
+.hero .k{font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:800;opacity:.85}
+.hero .v{font-family:var(--font-m);font-weight:700;font-size:30px;letter-spacing:-.01em;margin:6px 0 2px;font-variant-numeric:tabular-nums}
+.hero .d{font-size:13px;font-weight:600;opacity:.95;position:relative}
+
+/* ---------- portfolio holdings ---------- */
+.hold{display:flex;align-items:center;gap:12px;padding:11px 12px;background:var(--surface);border:1px solid var(--line);
+  border-radius:14px;box-shadow:var(--shadow);margin-bottom:10px;text-align:left;width:100%}
+.hold .htb{width:46px;height:46px;flex:0 0 auto;border-radius:10px;display:grid;place-items:center;overflow:hidden}
+.hold .htb .glyph{font-size:24px}
+.hold .hmid{flex:1;min-width:0}
+.hold .hmid .nm{font-weight:700;font-size:14px}
+.hold .hmid .set{font-size:11px;color:var(--faint)}
+.hold .hend{text-align:right;display:flex;flex-direction:column;gap:2px}
+
+/* ---------- empty ---------- */
+.empty{text-align:center;padding:46px 24px;color:var(--muted)}
+.empty .ico{font-size:40px;margin-bottom:10px}
+.empty h3{font-family:var(--font-d);font-weight:700;color:var(--text);margin:0 0 6px;font-size:17px}
+.empty p{margin:0 auto;max-width:34ch;font-size:13.5px}
+
+/* ---------- buttons ---------- */
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;border-radius:14px;
+  font-weight:700;font-size:15px;transition:transform .1s,filter .15s}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.btn.gold{background:var(--gold);color:#12060a}
+.btn.ghost{background:var(--surface-2);color:var(--text);border:1px solid var(--line)}
+.btn:disabled{opacity:.5;filter:grayscale(.3);cursor:not-allowed}
+
+/* ---------- sell form ---------- */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:700;margin-bottom:7px}
+.selrow{display:flex;gap:8px;overflow-x:auto;margin:0 -16px;padding:2px 16px 10px}
+.selcard{flex:0 0 auto;width:96px;border-radius:14px;border:2px solid var(--line);background:var(--surface);
+  overflow:hidden;text-align:left;box-shadow:var(--shadow);transition:border-color .15s,transform .1s}
+.selcard:active{transform:scale(.97)}
+.selcard.on{border-color:var(--accent)}
+.selcard .art{aspect-ratio:1;display:grid;place-items:center}
+.selcard .art .glyph{font-size:30px}
+.selcard .cap{padding:6px 8px}
+.selcard .cap .nm{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.selcard .cap .price{font-size:11px}
+.seg{display:flex;gap:6px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:12px;padding:4px}
+.seg button{flex:1;padding:9px;border-radius:9px;font-weight:700;font-size:13.5px;color:var(--muted)}
+.seg button.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.moneyin{display:flex;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  padding:12px 14px;box-shadow:var(--shadow)}
+.moneyin span{font-family:var(--font-m);font-weight:700;color:var(--faint);margin-right:4px}
+.moneyin input{border:none;background:none;outline:none;color:var(--text);font-family:var(--font-m);font-weight:700;
+  font-size:18px;width:100%;font-variant-numeric:tabular-nums}
+
+/* ---------- bottom nav ---------- */
+.nav{position:absolute;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:repeat(4,1fr);
+  padding:8px 8px calc(8px + env(safe-area-inset-bottom));
+  background:color-mix(in srgb,var(--ground) 86%, transparent);
+  backdrop-filter:saturate(1.4) blur(16px);-webkit-backdrop-filter:saturate(1.4) blur(16px);
+  border-top:1px solid var(--line-soft)}
+.navbtn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;color:var(--faint);font-size:10px;font-weight:700}
+.navbtn svg{width:23px;height:23px}
+.navbtn.on{color:var(--accent)}
+.navbtn.on svg{transform:translateY(-1px)}
+
+/* ---------- sheet (card detail) ---------- */
+.scrim{position:absolute;inset:0;z-index:40;background:rgba(6,9,15,.55);opacity:0;pointer-events:none;transition:opacity .25s}
+.scrim.show{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:50;max-height:92%;background:var(--surface);
+  border-radius:24px 24px 0 0;box-shadow:var(--shadow-lg);transform:translateY(101%);transition:transform .3s cubic-bezier(.32,.72,0,1);
+  display:flex;flex-direction:column;overflow:hidden}
+.sheet.show{transform:none}
+.grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:10px auto 4px;flex:0 0 auto}
+.sheet-scroll{overflow-y:auto;padding:6px 18px 20px}
+.dhead{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px}
+.dbig{width:96px;height:134px;flex:0 0 auto;border-radius:14px;display:grid;place-items:center;overflow:hidden;position:relative;box-shadow:var(--shadow)}
+.dbig .glyph{font-size:56px;filter:drop-shadow(0 8px 12px rgba(0,0,0,.35))}
+.dbig::after{content:"";position:absolute;inset:0;background:var(--sheen);background-size:250% 250%;mix-blend-mode:screen;animation:sheen 4s ease-in-out infinite}
+.dtitle{flex:1;min-width:0}
+.dtitle .nm{font-family:var(--font-d);font-weight:700;font-size:20px;letter-spacing:-.01em;line-height:1.15}
+.dtitle .set{font-size:12.5px;color:var(--muted);margin-top:3px}
+.dtags{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.tag{font-size:10.5px;font-weight:700;padding:4px 9px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line-soft);color:var(--muted)}
+.dprice{display:flex;align-items:baseline;gap:10px;margin:6px 0 4px}
+.dprice .price{font-size:30px}
+.chartwrap{background:var(--surface-2);border:1px solid var(--line-soft);border-radius:16px;padding:14px 12px 8px;margin:12px 0}
+.chartwrap .chd{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;padding:0 2px}
+.chartwrap .chd .lbl{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:700}
+.spread{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+.spread .s{background:var(--surface-2);border:1px solid var(--line-soft);border-radius:12px;padding:10px 12px}
+.spread .s .l{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:700}
+.spread .s .v{font-family:var(--font-m);font-weight:700;font-size:16px;margin-top:3px;font-variant-numeric:tabular-nums}
+.dactions{display:flex;gap:10px;margin-top:12px}
+.owned-note{text-align:center;font-size:12px;color:var(--up);font-weight:700;margin-top:10px}
+
+/* bid sheet */
+.bidbox{display:flex;gap:10px;align-items:center;margin:12px 0}
+.bidbox .moneyin{flex:1}
+.stepper{display:flex;gap:6px}
+.stepper button{width:42px;height:46px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line);
+  font-weight:800;font-size:18px;color:var(--text)}
+.bidhist{margin-top:10px;border-top:1px solid var(--line-soft);padding-top:10px}
+.bidhist .bh{display:flex;justify-content:space-between;padding:7px 2px;font-size:13px}
+.bidhist .bh .who{color:var(--muted);font-weight:600}
+.bidhist .bh .amt{font-family:var(--font-m);font-weight:700;font-variant-numeric:tabular-nums}
+.bidhist .bh.you .who{color:var(--accent)}
+
+/* ---------- toast ---------- */
+.toast{position:absolute;left:50%;bottom:104px;transform:translate(-50%,20px);z-index:80;
+  background:var(--text);color:var(--ground);font-weight:700;font-size:13.5px;padding:11px 16px;border-radius:12px;
+  box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;max-width:90%;text-align:center}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.err{background:var(--down);color:#fff}
+.toast.win{background:var(--up);color:#06251a}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="pokeball" aria-hidden="true"></div>
+      <h1>Poké<span>Market</span></h1>
+    </div>
+    <div class="wallet" id="wallet" role="status" aria-label="Wallet balance">
+      <div class="lbl">Balance</div>
+      <div class="amt" id="wallet-amt">$0</div>
+    </div>
+    <button class="iconbtn" id="theme-btn" title="Toggle theme" aria-label="Toggle theme">◐</button>
+  </header>
+
+  <main class="scroll" id="scroll">
+    <!-- MARKET -->
+    <section class="view active" id="view-market">
+      <p class="eyebrow">Live market · updated just now</p>
+      <div class="search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+        <input id="search" type="search" placeholder="Search Charizard, sets, rarities…" autocomplete="off">
+      </div>
+      <div class="chips" id="chips"></div>
+
+      <div class="section-h" id="movers-h"><h2>Top movers</h2><span class="link">24h</span></div>
+      <div class="movers" id="movers"></div>
+
+      <div class="section-h"><h2 id="grid-title">All cards</h2><span class="link" id="grid-count"></span></div>
+      <div class="grid" id="grid"></div>
+    </section>
+
+    <!-- AUCTIONS -->
+    <section class="view" id="view-auctions">
+      <p class="eyebrow">Live auctions · bid to win</p>
+      <div class="section-h"><h2>Ending soon</h2></div>
+      <div id="auctions"></div>
+    </section>
+
+    <!-- SELL -->
+    <section class="view" id="view-sell">
+      <p class="eyebrow">List a card · reach thousands of collectors</p>
+      <div class="section-h"><h2>Sell a card</h2></div>
+      <div id="sell-body"></div>
+    </section>
+
+    <!-- PORTFOLIO -->
+    <section class="view" id="view-portfolio">
+      <p class="eyebrow">Your collection</p>
+      <div id="portfolio"></div>
+    </section>
+  </main>
+
+  <nav class="nav" id="nav">
+    <button class="navbtn on" data-tab="market">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13.5 12 4l9 9.5"/><path d="M5 12v7h14v-7"/></svg>
+      Market
+    </button>
+    <button class="navbtn" data-tab="auctions">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14 5 5 5"/><path d="M4 20 13.5 10.5"/><path d="m9 8 7 7"/><path d="M12 3 21 12"/><path d="M3 21h8"/></svg>
+      Auctions
+    </button>
+    <button class="navbtn" data-tab="sell">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+      Sell
+    </button>
+    <button class="navbtn" data-tab="portfolio">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      Portfolio
+    </button>
+  </nav>
+
+  <div class="scrim" id="scrim"></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Card detail">
+    <div class="grab"></div>
+    <div class="sheet-scroll" id="sheet-body"></div>
+  </div>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   PokéMarket — data
+   ============================================================ */
+const GRADIENTS = {
+  fire:      "linear-gradient(140deg,#ff9d3d,#ee4c4c 70%,#b02a2a)",
+  water:     "linear-gradient(140deg,#63d0ff,#2e7be4 72%,#1c53b0)",
+  grass:     "linear-gradient(140deg,#8bf0a3,#2fa968 72%,#1c7a49)",
+  lightning: "linear-gradient(140deg,#ffe066,#f5a623 72%,#d07d0a)",
+  psychic:   "linear-gradient(140deg,#d79bff,#8e44e0 72%,#642bb0)",
+  dragon:    "linear-gradient(140deg,#9aa6ff,#5b3fd6 72%,#3a247f)",
+  dark:      "linear-gradient(140deg,#5a6172,#2a2f3d 72%,#151922)",
+  normal:    "linear-gradient(140deg,#dfe4ee,#9aa6bd 72%,#6f7b93)"
+};
+const RSHORT = { "Common":"C","Uncommon":"U","Rare":"R","Holo Rare":"HR","Ultra Rare":"UR","Secret Rare":"SR" };
+
+const CARDS = [
+  {id:"charizard-ex",   name:"Charizard ex",     set:"Obsidian Flames", num:"125/197", type:"fire",      rarity:"Ultra Rare",   glyph:"🔥", price:389.50, chg:4.8, grade:"PSA 9"},
+  {id:"moonbreon",      name:"Umbreon VMAX",     set:"Evolving Skies",  num:"215/203", type:"dark",      rarity:"Secret Rare",  glyph:"🌙", price:521.00, chg:2.1, grade:"PSA 10"},
+  {id:"rayquaza-vmax",  name:"Rayquaza VMAX",    set:"Evolving Skies",  num:"218/203", type:"dragon",    rarity:"Secret Rare",  glyph:"🐉", price:214.75, chg:-1.6, grade:"PSA 9"},
+  {id:"pikachu-vmax",   name:"Pikachu VMAX",     set:"Vivid Voltage",   num:"188/185", type:"lightning", rarity:"Secret Rare",  glyph:"⚡", price:142.30, chg:3.4, grade:"PSA 9"},
+  {id:"giratina-v",     name:"Giratina V",       set:"Lost Origin",     num:"186/196", type:"psychic",   rarity:"Ultra Rare",   glyph:"👁️", price:96.00, chg:6.2, grade:"PSA 10"},
+  {id:"mewtwo-gx",      name:"Mewtwo GX",        set:"Shining Legends", num:"39/73",   type:"psychic",   rarity:"Ultra Rare",   glyph:"🔮", price:88.40, chg:-0.7, grade:"PSA 9"},
+  {id:"blastoise-ex",   name:"Blastoise ex",     set:"Scarlet 151",     num:"200/165", type:"water",     rarity:"Ultra Rare",   glyph:"💧", price:76.10, chg:1.2, grade:"PSA 9"},
+  {id:"sylveon-vmax",   name:"Sylveon VMAX",     set:"Evolving Skies",  num:"212/203", type:"psychic",   rarity:"Secret Rare",  glyph:"🎀", price:71.90, chg:2.9, grade:"PSA 9"},
+  {id:"gengar-vmax",    name:"Gengar VMAX",      set:"Fusion Strike",   num:"271/264", type:"psychic",   rarity:"Secret Rare",  glyph:"👻", price:64.50, chg:-2.3, grade:"PSA 9"},
+  {id:"alakazam",       name:"Alakazam",         set:"Base Set",        num:"1/102",   type:"psychic",   rarity:"Holo Rare",    glyph:"🥄", price:58.00, chg:0.9, grade:"PSA 7"},
+  {id:"venusaur-ex",    name:"Venusaur ex",      set:"Scarlet 151",     num:"198/165", type:"grass",     rarity:"Ultra Rare",   glyph:"🌿", price:54.25, chg:1.8, grade:"PSA 9"},
+  {id:"lugia-v",        name:"Lugia V",          set:"Silver Tempest",  num:"186/195", type:"normal",    rarity:"Ultra Rare",   glyph:"🕊️", price:47.80, chg:-1.1, grade:"PSA 9"},
+  {id:"zapdos",         name:"Zapdos",           set:"Base Set",        num:"16/102",  type:"lightning", rarity:"Holo Rare",    glyph:"⚡", price:46.00, chg:3.1, grade:"PSA 8"},
+  {id:"machamp",        name:"Machamp",          set:"Base Set",        num:"8/102",   type:"normal",    rarity:"Holo Rare",    glyph:"💪", price:39.50, chg:0.4, grade:"PSA 8"},
+  {id:"lucario-vstar",  name:"Lucario VSTAR",    set:"Astral Radiance", num:"178/189", type:"normal",    rarity:"Ultra Rare",   glyph:"⚔️", price:32.10, chg:2.2, grade:"PSA 9"},
+  {id:"snorlax",        name:"Snorlax",          set:"Base Set",        num:"11/64",   type:"normal",    rarity:"Rare",         glyph:"😴", price:27.75, chg:-0.5, grade:"PSA 8"}
+];
+const CARD_BY_ID = Object.fromEntries(CARDS.map(c=>[c.id,c]));
+
+// Deterministic pseudo-random price history so charts are stable per card.
+function history(card, points=32){
+  let seed = 0; for(const ch of card.id) seed = (seed*31 + ch.charCodeAt(0)) & 0xffff;
+  const rand = () => { seed = (seed*1103515245 + 12345) & 0x7fffffff; return (seed>>8)/0x7fffff; };
+  const out = []; const drift = card.chg/100;
+  let v = card.price / (1 + drift*1.4);
+  for(let i=0;i<points;i++){
+    const noise = (rand()-0.5)*card.price*0.055;
+    const trend = (card.price - v) * 0.12;
+    v = Math.max(card.price*0.55, v + trend + noise);
+    out.push(v);
+  }
+  out[out.length-1] = card.price;
+  return out;
+}
+
+const FAKE_BIDDERS = ["ashketchum","holo_hunter","pikafan22","gymleader_misty","cardvault","psa_paul","kantoKid","elite4_lorelei","charizardCEO","binderboy"];
+
+/* ============================================================
+   State + persistence
+   ============================================================ */
+const STORE_KEY = "pokemarket.v2";
+const FEE_RATE = 0.03;                 // 3% platform commission → owner earnings
+const now = () => Date.now();
+function seedAuctions(){
+  const picks = ["charizard-ex","pikachu-vmax","blastoise-ex","gengar-vmax","zapdos"];
+  const mins = [3, 11, 47, 128, 380];
+  return picks.map((id,i)=>{
+    const c = CARD_BY_ID[id];
+    const start = Math.round(c.price*0.55/5)*5;
+    const bid = Math.round(c.price*(0.6+0.06*i));
+    const hist = [];
+    let b = start;
+    for(let k=0;k<3+i;k++){ b += Math.round((c.price*0.05)*(0.6+k*0.2)); hist.push({who:FAKE_BIDDERS[(i*3+k)%FAKE_BIDDERS.length], amt:b, you:false}); }
+    hist[hist.length-1].amt = bid;
+    return {id:"auc-"+id, cardId:id, current:bid, endsAt: now()+mins[i]*60000, bids:hist, leaderYou:false};
+  });
+}
+function defaultState(){
+  return {
+    wallet: 4850.00,
+    owned: [ // starter collection with cost basis
+      {cardId:"snorlax", cost:19.00},
+      {cardId:"zapdos", cost:38.00},
+      {cardId:"venusaur-ex", cost:61.00}
+    ],
+    watch: ["moonbreon","charizard-ex"],
+    auctions: seedAuctions(),
+    listings: [],
+    revenue: 128.44   // platform commission you've earned so far (demo)
+  };
+}
+let S;
+function load(){
+  try{ const raw = localStorage.getItem(STORE_KEY); if(raw){ S = JSON.parse(raw); return; } }catch(e){}
+  S = defaultState();
+}
+function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){} }
+load();
+// refresh any auctions that fully expired on a cold load, so demo always has live ones
+(function reviveAuctions(){
+  const live = S.auctions.filter(a=> a.endsAt - now() > -60000);
+  if(live.length < 2){ S.auctions = seedAuctions(); save(); }
+})();
+
+/* ============================================================
+   Helpers
+   ============================================================ */
+const $  = (s,r=document)=>r.querySelector(s);
+const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
+const money = n => "$"+Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const money0 = n => "$"+Math.round(n).toLocaleString("en-US");
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function artStyle(type){ return `background:${GRADIENTS[type]||GRADIENTS.normal}`; }
+function deltaHTML(chg){
+  const up = chg>=0; const cls = up?"up":"down";
+  return `<span class="delta ${cls}">${up?"▲":"▼"} ${Math.abs(chg).toFixed(1)}%</span>`;
+}
+let toastTimer;
+function toast(msg, kind=""){
+  const t = $("#toast"); t.className="toast show "+kind; t.textContent = msg;
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=>t.className="toast", 2200);
+}
+
+function sparkline(vals, w=118, h=34, stroke="var(--muted)", fill=false){
+  const min = Math.min(...vals), max = Math.max(...vals), span = (max-min)||1;
+  const step = w/(vals.length-1);
+  const pts = vals.map((v,i)=>[i*step, h-2 - ((v-min)/span)*(h-4)]);
+  const d = pts.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" ");
+  const up = vals[vals.length-1] >= vals[0];
+  const col = stroke==="auto" ? (up?"var(--up)":"var(--down)") : stroke;
+  let area="";
+  if(fill){
+    const gid = "g"+Math.random().toString(36).slice(2,7);
+    area = `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${col}" stop-opacity="0.28"/><stop offset="1" stop-color="${col}" stop-opacity="0"/></linearGradient></defs>
+      <path d="${d} L ${w} ${h} L 0 ${h} Z" fill="url(#${gid})" stroke="none"/>`;
+  }
+  const end = pts[pts.length-1];
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" aria-hidden="true">
+    ${area}<path d="${d}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${end[0].toFixed(1)}" cy="${end[1].toFixed(1)}" r="2.6" fill="${col}"/></svg>`;
+}
+function fmtCountdown(ms){
+  if(ms<=0) return "Ended";
+  const s=Math.floor(ms/1000), d=Math.floor(s/86400), h=Math.floor(s%86400/3600), m=Math.floor(s%3600/60), ss=s%60;
+  if(d>0) return d+"d "+h+"h";
+  if(h>0) return h+"h "+String(m).padStart(2,"0")+"m";
+  if(m>0) return m+":"+String(ss).padStart(2,"0");
+  return "0:"+String(ss).padStart(2,"0");
+}
+
+/* ============================================================
+   Render: wallet + nav
+   ============================================================ */
+function renderWallet(){ $("#wallet-amt").textContent = money(S.wallet); }
+
+let activeTab = "market";
+function switchTab(tab){
+  activeTab = tab;
+  $$(".navbtn").forEach(b=>b.classList.toggle("on", b.dataset.tab===tab));
+  $$(".view").forEach(v=>v.classList.remove("active"));
+  $("#view-"+tab).classList.add("active");
+  $("#scroll").scrollTop = 0;
+  if(tab==="auctions") renderAuctions();
+  if(tab==="sell") renderSell();
+  if(tab==="portfolio") renderPortfolio();
+}
+
+/* ============================================================
+   Render: Market
+   ============================================================ */
+let filterType = "all";
+let query = "";
+const TYPES = [["all","All"],["fire","Fire"],["water","Water"],["grass","Grass"],["lightning","Lightning"],["psychic","Psychic"],["dragon","Dragon"],["dark","Dark"],["normal","Normal"]];
+
+function renderChips(){
+  $("#chips").innerHTML = TYPES.map(([v,l])=>
+    `<button class="chip ${v===filterType?'on':''}" data-type="${v}">${l}</button>`).join("");
+}
+function marketList(){
+  let list = CARDS.slice();
+  if(filterType!=="all") list = list.filter(c=>c.type===filterType);
+  if(query){ const q=query.toLowerCase();
+    list = list.filter(c=> (c.name+" "+c.set+" "+c.rarity+" "+c.type).toLowerCase().includes(q)); }
+  return list;
+}
+function cardTile(c){
+  const owned = S.owned.some(o=>o.cardId===c.id);
+  const watched = S.watch.includes(c.id);
+  return `<button class="tcard" data-card="${c.id}">
+    <div class="art" style="${artStyle(c.type)}">
+      <span class="glyph">${c.glyph}</span>
+      <span class="rarity">${RSHORT[c.rarity]||"·"} · ${c.grade}</span>
+      <span class="watch ${watched?'on':''}" data-watch="${c.id}" role="button" aria-label="Watch">${watched?'★':'☆'}</span>
+    </div>
+    <div class="meta">
+      <div class="nm">${esc(c.name)}${owned?' <span style="color:var(--up)">•</span>':''}</div>
+      <div class="set">${esc(c.set)}</div>
+      <div class="row"><span class="price">${money(c.price)}</span>${deltaHTML(c.chg)}</div>
+    </div>
+  </button>`;
+}
+function renderMovers(){
+  const movers = CARDS.slice().sort((a,b)=>Math.abs(b.chg)-Math.abs(a.chg)).slice(0,6);
+  $("#movers").innerHTML = movers.map(c=>{
+    const h = history(c,16);
+    return `<button class="mover" data-card="${c.id}">
+      <div class="mrow"><span class="mnm">${esc(c.name)}</span></div>
+      <div class="mini">${sparkline(h,118,34,"auto",true)}</div>
+      <div class="mrow"><span class="price">${money(c.price)}</span>${deltaHTML(c.chg)}</div>
+    </button>`;
+  }).join("");
+}
+function renderGrid(){
+  const list = marketList();
+  $("#grid-count").textContent = list.length+" cards";
+  $("#grid-title").textContent = filterType==="all" ? (query?"Results":"All cards") : TYPES.find(t=>t[0]===filterType)[1]+" cards";
+  $("#grid").innerHTML = list.length ? list.map(cardTile).join("")
+    : `<div class="empty" style="grid-column:1/-1"><div class="ico">🔍</div><h3>No cards found</h3><p>Try another search or clear the filter.</p></div>`;
+  $("#movers-h").style.display = (query||filterType!=="all") ? "none" : "";
+  $("#movers").style.display = (query||filterType!=="all") ? "none" : "";
+}
+function renderMarket(){ renderChips(); renderMovers(); renderGrid(); }
+
+/* ============================================================
+   Render: Card detail sheet
+   ============================================================ */
+function openCard(id){
+  const c = CARD_BY_ID[id]; if(!c) return;
+  const h = history(c,32);
+  const owned = S.owned.filter(o=>o.cardId===id);
+  const watched = S.watch.includes(id);
+  const low = Math.min(...h), high = Math.max(...h);
+  const canBuy = S.wallet >= c.price;
+  $("#sheet-body").innerHTML = `
+    <div class="dhead">
+      <div class="dbig" style="${artStyle(c.type)}"><span class="glyph">${c.glyph}</span></div>
+      <div class="dtitle">
+        <div class="nm">${esc(c.name)}</div>
+        <div class="set">${esc(c.set)} · ${esc(c.num)}</div>
+        <div class="dtags">
+          <span class="tag">${esc(c.rarity)}</span>
+          <span class="tag">${esc(c.grade)}</span>
+          <span class="tag" style="text-transform:capitalize">${esc(c.type)}</span>
+        </div>
+        <div class="dprice"><span class="price">${money(c.price)}</span>${deltaHTML(c.chg)}</div>
+      </div>
+    </div>
+    <div class="chartwrap">
+      <div class="chd"><span class="lbl">Price · 30 days</span><span class="lbl">${money(low)}–${money(high)}</span></div>
+      ${sparkline(h, 360, 96, "auto", true)}
+    </div>
+    <div class="spread">
+      <div class="s"><div class="l">Market</div><div class="v">${money(c.price)}</div></div>
+      <div class="s"><div class="l">30d low</div><div class="v">${money(low)}</div></div>
+      <div class="s"><div class="l">30d high</div><div class="v">${money(high)}</div></div>
+      <div class="s"><div class="l">You own</div><div class="v">${owned.length}</div></div>
+    </div>
+    <div class="dactions">
+      <button class="btn ghost" data-watch2="${c.id}" style="flex:0 0 52px">${watched?'★':'☆'}</button>
+      <button class="btn primary" data-buy="${c.id}" ${canBuy?'':'disabled'}>${canBuy?'Buy now · '+money(c.price):'Insufficient balance'}</button>
+    </div>
+    ${owned.length?`<div class="owned-note">✓ In your collection — sell it from the Sell tab</div>`:''}`;
+  showSheet();
+}
+function openAuction(aucId){
+  const a = S.auctions.find(x=>x.id===aucId); if(!a) return;
+  const c = CARD_BY_ID[a.cardId];
+  const ms = a.endsAt - now();
+  const ended = ms<=0;
+  const minNext = a.current + bidStep(a.current);
+  const canBid = S.wallet >= minNext && !ended;
+  const bids = a.bids.slice().reverse();
+  $("#sheet-body").innerHTML = `
+    <div class="dhead">
+      <div class="dbig" style="${artStyle(c.type)}"><span class="glyph">${c.glyph}</span></div>
+      <div class="dtitle">
+        <div class="nm">${esc(c.name)}</div>
+        <div class="set">${esc(c.set)} · ${esc(c.num)}</div>
+        <div class="dtags"><span class="tag">${esc(c.rarity)}</span><span class="tag">${esc(c.grade)}</span>
+          <span class="tag">${a.bids.length} bids</span></div>
+        <div class="dprice"><span class="price">${money(a.current)}</span>
+          <span class="cap" style="color:var(--faint);font-size:11px;font-weight:700">current bid</span></div>
+      </div>
+    </div>
+    <div class="spread">
+      <div class="s"><div class="l">Time left</div><div class="v" id="sheet-timer" style="color:${ms<300000&&!ended?'var(--accent)':'var(--text)'}">${fmtCountdown(ms)}</div></div>
+      <div class="s"><div class="l">Market value</div><div class="v">${money(c.price)}</div></div>
+    </div>
+    ${ended ? `<div class="empty" style="padding:20px"><div class="ico">🏁</div><h3>${a.leaderYou?'You won! 🎉':'Auction ended'}</h3><p>${a.leaderYou?'This card has been added to your collection.':'Final price '+money(a.current)+'.'}</p></div>`
+    : `<div style="margin-top:6px">
+        ${a.leaderYou?'<div class="winning" style="text-align:center;margin-bottom:8px">You\'re the highest bidder</div>':''}
+        <div class="bidbox">
+          <div class="stepper"><button data-bidadj="-1">–</button></div>
+          <div class="moneyin"><span>$</span><input id="bid-input" type="number" inputmode="decimal" value="${minNext}" min="${minNext}" step="1"></div>
+          <div class="stepper"><button data-bidadj="1">+</button></div>
+        </div>
+        <button class="btn gold" data-placebid="${a.id}" ${canBid?'':'disabled'}>${S.wallet<minNext?'Balance too low':'Place bid'}</button>
+        <p style="text-align:center;font-size:11.5px;color:var(--faint);margin:8px 0 0">Min next bid ${money(minNext)} · +${money(bidStep(a.current))} increment</p>
+      </div>`}
+    <div class="bidhist">
+      ${bids.map(b=>`<div class="bh ${b.you?'you':''}"><span class="who">${b.you?'You':'@'+esc(b.who)}</span><span class="amt">${money(b.amt)}</span></div>`).join("")}
+    </div>`;
+  showSheet();
+}
+function bidStep(cur){ return cur<50?2 : cur<150?5 : cur<400?10 : 25; }
+
+function showSheet(){ $("#scrim").classList.add("show"); $("#sheet").classList.add("show"); }
+function closeSheet(){ $("#scrim").classList.remove("show"); $("#sheet").classList.remove("show"); }
+
+/* ============================================================
+   Actions: buy / watch / bid
+   ============================================================ */
+function buy(id){
+  const c = CARD_BY_ID[id]; if(!c) return;
+  if(S.wallet < c.price){ toast("Not enough balance","err"); return; }
+  S.wallet -= c.price;
+  S.owned.push({cardId:id, cost:c.price});
+  S.revenue += c.price * FEE_RATE;          // 3% commission to the platform owner
+  save(); renderWallet(); renderMarket();
+  closeSheet();
+  toast("Bought "+c.name+" for "+money(c.price)+" ✓","win");
+}
+function toggleWatch(id){
+  const i = S.watch.indexOf(id);
+  if(i>=0){ S.watch.splice(i,1); toast("Removed from watchlist"); }
+  else{ S.watch.push(id); toast("★ Added to watchlist"); }
+  save(); renderGrid();
+}
+function placeBid(aucId){
+  const a = S.auctions.find(x=>x.id===aucId); if(!a) return;
+  if(a.endsAt-now()<=0){ toast("Auction ended","err"); return; }
+  const input = $("#bid-input"); let amt = Math.round(parseFloat(input.value)*100)/100;
+  const minNext = a.current + bidStep(a.current);
+  if(isNaN(amt) || amt < minNext){ toast("Bid at least "+money(minNext),"err"); return; }
+  if(amt > S.wallet){ toast("Not enough balance","err"); return; }
+  a.current = amt; a.leaderYou = true;
+  a.bids.push({who:"you", amt, you:true});
+  // small chance a rival counter-bids to keep it lively
+  save();
+  renderWallet(); renderAuctions();
+  openAuction(aucId);
+  toast("Bid placed · "+money(amt),"win");
+  maybeCounterBid(aucId);
+}
+function maybeCounterBid(aucId){
+  const a = S.auctions.find(x=>x.id===aucId); if(!a) return;
+  if(a.endsAt-now() < 20000) return;      // no sniping in final seconds of demo
+  if(Math.random() > 0.55) return;
+  setTimeout(()=>{
+    const cur = S.auctions.find(x=>x.id===aucId); if(!cur || !cur.leaderYou) return;
+    if(cur.endsAt-now()<=0) return;
+    const inc = bidStep(cur.current);
+    cur.current += inc; cur.leaderYou = false;
+    cur.bids.push({who:FAKE_BIDDERS[Math.floor(Math.random()*FAKE_BIDDERS.length)], amt:cur.current, you:false});
+    save();
+    if(activeTab==="auctions") renderAuctions();
+    if($("#sheet").classList.contains("show") && $("#sheet-body").innerHTML.includes(aucId)) openAuction(aucId);
+    toast("You've been outbid on "+CARD_BY_ID[cur.cardId].name,"err");
+  }, 3200 + Math.random()*3000);
+}
+
+/* ============================================================
+   Render: Auctions
+   ============================================================ */
+function renderAuctions(){
+  const el = $("#auctions");
+  const list = S.auctions.slice().sort((a,b)=>a.endsAt-b.endsAt);
+  el.innerHTML = list.map(a=>{
+    const c = CARD_BY_ID[a.cardId];
+    const ms = a.endsAt-now(); const ended = ms<=0;
+    const hot = ms<300000 && !ended;
+    let status="";
+    if(ended) status = a.leaderYou?`<span class="winning">Won ✓</span>`:`<span class="tcap">Closed</span>`;
+    else if(a.leaderYou) status = `<span class="winning">Winning</span>`;
+    else if(a.bids.some(b=>b.you)) status = `<span class="winning outbid">Outbid</span>`;
+    return `<button class="acard" data-auc="${a.id}">
+      <div class="athumb" style="${artStyle(c.type)}"><span class="glyph">${c.glyph}</span></div>
+      <div class="ainfo">
+        <span class="nm">${esc(c.name)}</span>
+        <span class="set">${esc(c.set)} · ${a.bids.length} bids</span>
+        <div class="bidrow"><span class="price">${money(a.current)}</span><span class="cap">bid</span></div>
+        ${status}
+      </div>
+      <div class="timer">
+        <span class="tpill ${ended?'ended':hot?'hot':''}" data-endsat="${a.endsAt}">${fmtCountdown(ms)}</span>
+        <span class="tcap">${ended?'final':'left'}</span>
+      </div>
+    </button>`;
+  }).join("");
+}
+
+/* ============================================================
+   Render: Sell
+   ============================================================ */
+let sellSel = null, sellMode = "fixed";
+function renderSell(){
+  const body = $("#sell-body");
+  if(!S.owned.length){
+    body.innerHTML = `<div class="empty"><div class="ico">🃏</div><h3>No cards to sell yet</h3>
+      <p>Buy cards from the Market and they'll show up here, ready to list.</p>
+      <button class="btn primary" style="margin-top:16px;max-width:220px;margin-inline:auto" onclick="switchTab('market')">Browse market</button></div>`;
+    return;
+  }
+  if(!sellSel || !S.owned.some(o=>o.cardId===sellSel)) sellSel = S.owned[0].cardId;
+  const uniq = [...new Set(S.owned.map(o=>o.cardId))];
+  const c = CARD_BY_ID[sellSel];
+  const suggest = sellMode==="fixed" ? c.price : Math.round(c.price*0.65);
+  body.innerHTML = `
+    <div class="field">
+      <label>Choose a card from your collection</label>
+      <div class="selrow" id="sell-row">
+        ${uniq.map(id=>{ const cc=CARD_BY_ID[id];
+          return `<button class="selcard ${id===sellSel?'on':''}" data-sell="${id}">
+            <div class="art" style="${artStyle(cc.type)}"><span class="glyph">${cc.glyph}</span></div>
+            <div class="cap"><div class="nm">${esc(cc.name)}</div><div class="price">${money(cc.price)}</div></div>
+          </button>`;}).join("")}
+      </div>
+    </div>
+    <div class="field">
+      <label>Listing type</label>
+      <div class="seg" id="sell-seg">
+        <button class="${sellMode==='fixed'?'on':''}" data-mode="fixed">Buy now</button>
+        <button class="${sellMode==='auction'?'on':''}" data-mode="auction">Auction</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>${sellMode==='fixed'?'Asking price':'Starting bid'}</label>
+      <div class="moneyin"><span>$</span><input id="sell-price" type="number" inputmode="decimal" value="${suggest}" min="1" step="1"></div>
+      <p style="font-size:11.5px;color:var(--faint);margin:8px 2px 0">Market value ${money(c.price)}. ${sellMode==='fixed'?'PokéMarket commission 3% on sale.':'Runs for 24h · 3% commission on final price.'}</p>
+    </div>
+    <button class="btn primary" id="list-btn">${sellMode==='fixed'?'List for '+money(suggest):'Start auction at '+money(suggest)}</button>
+    <p style="text-align:center;font-size:12px;color:var(--faint);margin:12px 0 0">You'll receive ${money(suggest*(1-FEE_RATE))} after the 3% fee if it sells.</p>
+  `;
+  // keep the estimate line/button in sync as the user types
+  const priceInput = $("#sell-price");
+  priceInput.addEventListener("input", ()=>{
+    const v = parseFloat(priceInput.value)||0;
+    $("#list-btn").textContent = (sellMode==='fixed'?'List for ':'Start auction at ')+money(v);
+    body.querySelector("p:last-of-type").textContent = "You'll receive "+money(v*(1-FEE_RATE))+" after the 3% fee if it sells.";
+  });
+}
+function listCard(){
+  const c = CARD_BY_ID[sellSel];
+  const price = Math.round((parseFloat($("#sell-price").value)||0)*100)/100;
+  if(price < 1){ toast("Set a valid price","err"); return; }
+  // remove one copy from collection
+  const idx = S.owned.findIndex(o=>o.cardId===sellSel);
+  if(idx<0){ toast("You don't own that card","err"); return; }
+  S.owned.splice(idx,1);
+  if(sellMode==="auction"){
+    S.auctions.push({id:"auc-user-"+now(), cardId:sellSel, current:price, endsAt:now()+24*3600000,
+      bids:[{who:"you",amt:price,you:true}], leaderYou:true});
+    toast("Auction started for "+c.name+" 🔨","win");
+    switchTab("auctions");
+  }else{
+    S.listings.push({cardId:sellSel, price, at:now()});
+    // simulate a quick sale for the demo economy
+    const fee = price*FEE_RATE;
+    S.wallet += price - fee;
+    S.revenue += fee;                         // your 3% cut
+    toast("Sold "+c.name+" · +"+money(price-fee)+" (3% fee)","win");
+    switchTab("portfolio");
+  }
+  sellSel = null;
+  save(); renderWallet();
+}
+
+/* ============================================================
+   Render: Portfolio
+   ============================================================ */
+function renderPortfolio(){
+  const el = $("#portfolio");
+  const owned = S.owned;
+  const value = owned.reduce((s,o)=>s+CARD_BY_ID[o.cardId].price,0);
+  const cost  = owned.reduce((s,o)=>s+o.cost,0);
+  const pl = value-cost; const plPct = cost? pl/cost*100 : 0;
+  const net = value + S.wallet;
+  // group owned by card
+  const groups = {};
+  owned.forEach(o=>{ (groups[o.cardId] ||= []).push(o); });
+  const watchCards = S.watch.map(id=>CARD_BY_ID[id]).filter(Boolean);
+
+  el.innerHTML = `
+    <div class="hero">
+      <div class="k">Net worth</div>
+      <div class="v">${money(net)}</div>
+      <div class="d">${money(S.wallet)} cash · ${money(value)} in cards</div>
+    </div>
+    <div class="stat-row" style="margin-top:12px">
+      <div class="stat"><div class="lbl">Collection value</div><div class="big">${money(value)}</div>
+        <div class="sub" style="color:${pl>=0?'var(--up)':'var(--down)'}">${pl>=0?'▲':'▼'} ${money(Math.abs(pl))} (${plPct.toFixed(1)}%)</div></div>
+      <div class="stat"><div class="lbl">Cards owned</div><div class="big">${owned.length}</div>
+        <div class="sub" style="color:var(--muted)">${Object.keys(groups).length} unique</div></div>
+    </div>
+    <div class="stat" style="margin-top:12px;background:var(--gold-soft);border-color:color-mix(in srgb,var(--gold) 40%, var(--line))">
+      <div class="lbl" style="color:var(--gold)">Owner earnings · 3% commission</div>
+      <div class="big" style="color:var(--gold)">${money(S.revenue)}</div>
+      <div class="sub" style="color:var(--muted)">You collect 3% of every sale and auction on PokéMarket</div>
+    </div>
+
+    <div class="section-h"><h2>Holdings</h2><span class="link" onclick="switchTab('sell')">Sell</span></div>
+    ${owned.length ? Object.entries(groups).map(([id,arr])=>{
+      const c=CARD_BY_ID[id]; const qty=arr.length;
+      const basis=arr.reduce((s,o)=>s+o.cost,0)/qty; const diff=c.price-basis;
+      return `<button class="hold" data-card="${id}">
+        <div class="htb" style="${artStyle(c.type)}"><span class="glyph">${c.glyph}</span></div>
+        <div class="hmid"><div class="nm">${esc(c.name)}${qty>1?` ×${qty}`:''}</div>
+          <div class="set">${esc(c.set)} · avg ${money(basis)}</div></div>
+        <div class="hend"><span class="price">${money(c.price)}</span>
+          <span class="delta ${diff>=0?'up':'down'}">${diff>=0?'▲':'▼'} ${money(Math.abs(diff))}</span></div>
+      </button>`;}).join("")
+      : `<div class="empty"><div class="ico">📦</div><h3>No cards yet</h3><p>Buy from the market to start your collection.</p></div>`}
+
+    ${watchCards.length?`<div class="section-h"><h2>Watchlist</h2><span class="link">${watchCards.length}</span></div>
+      ${watchCards.map(c=>`<button class="hold" data-card="${c.id}">
+        <div class="htb" style="${artStyle(c.type)}"><span class="glyph">${c.glyph}</span></div>
+        <div class="hmid"><div class="nm">${esc(c.name)}</div><div class="set">${esc(c.set)}</div></div>
+        <div class="hend"><span class="price">${money(c.price)}</span>${deltaHTML(c.chg)}</div>
+      </button>`).join("")}`:''}
+
+    <div style="height:6px"></div>
+    <button class="btn ghost" id="reset-btn" style="margin-top:8px">Reset demo data</button>
+  `;
+}
+
+/* ============================================================
+   Live ticking for auctions/timers
+   ============================================================ */
+setInterval(()=>{
+  // update visible auction timers
+  $$("[data-endsat]").forEach(el=>{
+    const ms = parseInt(el.dataset.endsat)-now();
+    el.textContent = fmtCountdown(ms);
+    el.classList.toggle("hot", ms<300000 && ms>0);
+    el.classList.toggle("ended", ms<=0);
+  });
+  const st = $("#sheet-timer");
+  if(st){ const a = S.auctions.find(x=>$("#sheet-body").innerHTML.includes(x.id));
+    if(a){ const ms=a.endsAt-now(); st.textContent=fmtCountdown(ms);
+      st.style.color = ms<300000&&ms>0?'var(--accent)':'var(--text)'; } }
+}, 1000);
+
+/* ============================================================
+   Events (delegated)
+   ============================================================ */
+$("#nav").addEventListener("click", e=>{ const b=e.target.closest(".navbtn"); if(b) switchTab(b.dataset.tab); });
+
+document.addEventListener("click", e=>{
+  const watch = e.target.closest("[data-watch]");
+  if(watch){ e.stopPropagation(); toggleWatch(watch.dataset.watch); return; }
+  const card = e.target.closest("[data-card]");
+  if(card){ openCard(card.dataset.card); return; }
+  const auc = e.target.closest("[data-auc]");
+  if(auc){ openAuction(auc.dataset.auc); return; }
+});
+
+$("#sheet-body").addEventListener("click", e=>{
+  const buyb = e.target.closest("[data-buy]"); if(buyb){ buy(buyb.dataset.buy); return; }
+  const w2 = e.target.closest("[data-watch2]"); if(w2){ toggleWatch(w2.dataset.watch2); openCard(w2.dataset.watch2); return; }
+  const pb = e.target.closest("[data-placebid]"); if(pb){ placeBid(pb.dataset.placebid); return; }
+  const adj = e.target.closest("[data-bidadj]");
+  if(adj){ const inp=$("#bid-input"); if(!inp) return;
+    const a = S.auctions.find(x=>$("#sheet-body").innerHTML.includes(x.id));
+    const step = a?bidStep(a.current):1;
+    inp.value = Math.max(0, (parseFloat(inp.value)||0) + step*parseInt(adj.dataset.bidadj)); }
+});
+
+$("#scrim").addEventListener("click", closeSheet);
+
+// Market controls
+$("#search").addEventListener("input", e=>{ query=e.target.value.trim(); renderGrid(); });
+$("#chips").addEventListener("click", e=>{ const c=e.target.closest(".chip"); if(!c) return;
+  filterType=c.dataset.type; renderChips(); renderGrid(); });
+
+// Sell controls (delegated on the view)
+$("#view-sell").addEventListener("click", e=>{
+  const sc = e.target.closest("[data-sell]"); if(sc){ sellSel=sc.dataset.sell; renderSell(); return; }
+  const md = e.target.closest("[data-mode]"); if(md){ sellMode=md.dataset.mode; renderSell(); return; }
+  if(e.target.id==="list-btn"){ listCard(); }
+});
+
+// Portfolio reset
+$("#view-portfolio").addEventListener("click", e=>{
+  if(e.target.id==="reset-btn"){
+    if(confirm("Reset all demo data (wallet, collection, auctions)?")){
+      S = defaultState(); save(); renderWallet(); renderPortfolio(); renderMarket(); toast("Demo reset");
+    }
+  }
+});
+
+// Theme toggle
+$("#theme-btn").addEventListener("click", ()=>{
+  const root=document.documentElement;
+  const cur = root.getAttribute("data-theme")
+    || (matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light");
+  const next = cur==="dark"?"light":"dark";
+  root.setAttribute("data-theme", next);
+  try{ localStorage.setItem("pokemarket.theme", next); }catch(e){}
+});
+(function initTheme(){ try{ const t=localStorage.getItem("pokemarket.theme"); if(t) document.documentElement.setAttribute("data-theme",t); }catch(e){} })();
+
+/* ============================================================
+   Boot
+   ============================================================ */
+renderWallet();
+renderMarket();
+</script>
+</body>
+</html>
