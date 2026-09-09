@@ -139,7 +139,7 @@ input{font-family:inherit}
   display:flex;flex-direction:column;
 }
 .tcard:active{transform:scale(.975)}
-.tcard .art{position:relative;aspect-ratio:1/1;display:grid;place-items:center;overflow:hidden}
+.tcard .art{position:relative;aspect-ratio:1/1;display:grid;place-items:center;overflow:hidden;padding:30px 14px 16px}
 .tcard .art .glyph{font-size:46px;filter:drop-shadow(0 6px 10px rgba(0,0,0,.28));transform:translateY(-2px)}
 .tcard .art::after{content:"";position:absolute;inset:0;background:var(--sheen);
   background-size:250% 250%;mix-blend-mode:screen;opacity:.8;pointer-events:none;
@@ -317,6 +317,29 @@ input{font-family:inherit}
 .cardimg{width:100%;height:100%;object-fit:cover;display:block}
 .dbig .cardimg{object-fit:contain;padding:4px}
 .selcard .cardimg{object-fit:contain}
+.tcard .art .cardimg{object-fit:contain}
+
+/* stylized trading-card frame (shown until a real photo loads) */
+.tcard .art::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(135% 115% at 50% 22%,rgba(255,255,255,.12),rgba(0,0,0,.34))}
+.pk{--tc:#8a94a6;position:relative;z-index:1;height:90%;aspect-ratio:5/7;border-radius:8px;
+  padding:6px 6px 5px;display:flex;flex-direction:column;gap:4px;color:#241a0b;
+  background:linear-gradient(155deg,color-mix(in srgb,var(--tc) 82%,#fff),var(--tc) 54%,color-mix(in srgb,var(--tc) 74%,#000));
+  box-shadow:0 8px 18px rgba(0,0,0,.42),inset 0 0 0 1.5px rgba(255,255,255,.45),inset 0 0 0 3.5px rgba(0,0,0,.06)}
+.pk-top{display:flex;align-items:center;justify-content:space-between;gap:4px;line-height:1;padding:0 1px}
+.pk-name{font-family:var(--font-d);font-weight:800;font-size:9px;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 0 rgba(255,255,255,.4)}
+.pk-hp{display:flex;align-items:center;gap:2px;font-family:var(--font-m);font-weight:700;font-size:7px;color:#7a140f;white-space:nowrap}
+.pk-en{font-size:9px}
+.pk-art{flex:1;border-radius:4px;overflow:hidden;position:relative;display:grid;place-items:center;
+  background:linear-gradient(160deg,#fbf5e4,#e7d9b9);
+  box-shadow:inset 0 0 0 2px rgba(92,70,28,.4),inset 0 2px 7px rgba(0,0,0,.16)}
+.pk-art::after{content:"";position:absolute;inset:0;background:var(--sheen);background-size:250% 250%;mix-blend-mode:screen;opacity:.7;animation:sheen 4s ease-in-out infinite}
+.pk-glyph{font-size:42px;filter:drop-shadow(0 4px 7px rgba(0,0,0,.3));position:relative;z-index:1}
+.pk-foot{display:flex;align-items:center;justify-content:space-between;gap:4px;font-family:var(--font-m);font-weight:700;font-size:6.5px;letter-spacing:.02em;color:#2c2413;padding:0 1px}
+.pk-foot .pk-set{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rarity,.watch{z-index:2}
+.dbig .pk{height:96%}
+.dbig .pk-glyph{font-size:46px}
 .livepill{display:inline-flex;align-items:center;gap:7px;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
 .livedot{width:7px;height:7px;border-radius:50%;background:var(--faint);flex:0 0 auto}
 .livedot.live{background:var(--up);box-shadow:0 0 0 3px var(--up-soft);animation:pulse 1.8s ease-in-out infinite}
@@ -538,11 +561,28 @@ const money = n => "$"+Number(n).toLocaleString("en-US",{minimumFractionDigits:2
 const money0 = n => "$"+Math.round(n).toLocaleString("en-US");
 const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function artStyle(type){ return `background:${GRADIENTS[type]||GRADIENTS.normal}`; }
-// Real card photo when the live feed has loaded one; otherwise the styled glyph.
-function cardArtInner(c){
+const TYPE_COLOR = {fire:"#ee5a3d",water:"#3f8fe0",grass:"#35a866",lightning:"#f2b21c",
+  psychic:"#9b57e0",dragon:"#6b57d6",dark:"#3a4150",normal:"#a9b3c6"};
+const ENERGY = {fire:"🔥",water:"💧",grass:"🌿",lightning:"⚡",psychic:"🔮",dragon:"🐉",dark:"🌑",normal:"⭐"};
+const CARD_HP = {"charizard-ex":330,"moonbreon":310,"rayquaza-vmax":320,"pikachu-vmax":310,
+  "giratina-v":220,"mewtwo-gx":190,"blastoise-ex":320,"sylveon-vmax":310,"gengar-vmax":320,
+  "alakazam":80,"venusaur-ex":340,"lugia-v":220,"zapdos":90,"machamp":100,"lucario-vstar":280,"snorlax":90};
+// A stylized trading-card rendered in CSS — used until a real photo loads.
+function cardFrame(c){
+  const hp = CARD_HP[c.id];
+  return `<div class="pk" style="--tc:${TYPE_COLOR[c.type]||TYPE_COLOR.normal}">
+    <div class="pk-top"><span class="pk-name">${esc(c.name)}</span>
+      <span class="pk-hp">${hp?('HP '+hp):''}<span class="pk-en">${ENERGY[c.type]||"⭐"}</span></span></div>
+    <div class="pk-art"><span class="pk-glyph">${c.glyph}</span></div>
+    <div class="pk-foot"><span class="pk-set">${esc(c.set)}</span><span>${esc(c.num)}</span></div>
+  </div>`;
+}
+// Real card photo when the live feed has loaded one; else a styled card (or bare glyph for tiny thumbs).
+function cardArtInner(c, mini){
   const src = c._imgS || c._img;
-  return src ? `<img class="cardimg" src="${src}" alt="${esc(c.name)}" loading="lazy">`
-             : `<span class="glyph">${c.glyph}</span>`;
+  if(src) return `<img class="cardimg" src="${src}" alt="${esc(c.name)}" loading="lazy">`;
+  if(mini) return `<span class="glyph">${c.glyph}</span>`;
+  return cardFrame(c);
 }
 function deltaHTML(chg){
   const up = chg>=0; const cls = up?"up":"down";
@@ -848,7 +888,7 @@ function openCheckout(id){
   $("#sheet-body").innerHTML = `
     <h2 style="font-family:var(--font-d);font-weight:700;font-size:20px;letter-spacing:-.01em;margin:2px 0 14px">Checkout</h2>
     <div class="order" style="margin-bottom:14px">
-      <div class="oimg" style="${artStyle(c.type)}">${cardArtInner(c)}</div>
+      <div class="oimg" style="${artStyle(c.type)}">${cardArtInner(c,true)}</div>
       <div class="omid"><div class="nm">${esc(c.name)}</div><div class="sub">${esc(c.set)} · ${esc(c.grade)}</div></div>
       <span class="price">${money(c.price)}</span>
     </div>
@@ -959,7 +999,7 @@ function renderAuctions(){
     else if(a.leaderYou) status = `<span class="winning">Winning</span>`;
     else if(a.bids.some(b=>b.you)) status = `<span class="winning outbid">Outbid</span>`;
     return `<button class="acard" data-auc="${a.id}">
-      <div class="athumb" style="${artStyle(c.type)}">${cardArtInner(c)}</div>
+      <div class="athumb" style="${artStyle(c.type)}">${cardArtInner(c,true)}</div>
       <div class="ainfo">
         <span class="nm">${esc(c.name)}</span>
         <span class="set">${esc(c.set)} · ${a.bids.length} bids</span>
@@ -996,7 +1036,7 @@ function renderSell(){
       <div class="selrow" id="sell-row">
         ${uniq.map(id=>{ const cc=CARD_BY_ID[id];
           return `<button class="selcard ${id===sellSel?'on':''}" data-sell="${id}">
-            <div class="art" style="${artStyle(cc.type)}">${cardArtInner(cc)}</div>
+            <div class="art" style="${artStyle(cc.type)}">${cardArtInner(cc,true)}</div>
             <div class="cap"><div class="nm">${esc(cc.name)}</div><div class="price">${money(cc.price)}</div></div>
           </button>`;}).join("")}
       </div>
@@ -1089,7 +1129,7 @@ function renderPortfolio(){
       const c=CARD_BY_ID[id]; const qty=arr.length;
       const basis=arr.reduce((s,o)=>s+o.cost,0)/qty; const diff=c.price-basis;
       return `<button class="hold" data-card="${id}">
-        <div class="htb" style="${artStyle(c.type)}">${cardArtInner(c)}</div>
+        <div class="htb" style="${artStyle(c.type)}">${cardArtInner(c,true)}</div>
         <div class="hmid"><div class="nm">${esc(c.name)}${qty>1?` ×${qty}`:''}</div>
           <div class="set">${esc(c.set)} · avg ${money(basis)}</div></div>
         <div class="hend"><span class="price">${money(c.price)}</span>
@@ -1100,14 +1140,14 @@ function renderPortfolio(){
     ${S.orders && S.orders.length ? `<div class="section-h"><h2>Incoming shipments</h2><span class="link">${S.orders.length}</span></div>
       ${S.orders.map(o=>{ const c=CARD_BY_ID[o.cardId]; const eta=new Date(o.eta);
         return `<div class="order">
-          <div class="oimg" style="${artStyle(c.type)}">${cardArtInner(c)}</div>
+          <div class="oimg" style="${artStyle(c.type)}">${cardArtInner(c,true)}</div>
           <div class="omid"><div class="nm">${esc(c.name)}</div>
             <div class="sub">#${o.id} · ${esc(o.addr.city)} · ETA ${eta.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div></div>
           <span class="ostatus">${esc(o.status)}</span></div>`;}).join("")}` : ''}
 
     ${watchCards.length?`<div class="section-h"><h2>Watchlist</h2><span class="link">${watchCards.length}</span></div>
       ${watchCards.map(c=>`<button class="hold" data-card="${c.id}">
-        <div class="htb" style="${artStyle(c.type)}">${cardArtInner(c)}</div>
+        <div class="htb" style="${artStyle(c.type)}">${cardArtInner(c,true)}</div>
         <div class="hmid"><div class="nm">${esc(c.name)}</div><div class="set">${esc(c.set)}</div></div>
         <div class="hend"><span class="price">${money(c.price)}</span>${deltaHTML(c.chg)}</div>
       </button>`).join("")}`:''}
