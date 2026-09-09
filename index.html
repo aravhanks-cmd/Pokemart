@@ -939,16 +939,27 @@ function apiToCard(ac){
   CARD_BY_ID[id] = c;
   return c;
 }
-async function apiSearch(q){
-  const term = q.replace(/[^A-Za-z0-9 '.-]/g,"").trim().replace(/\s+/g,"*");
-  if(!term) return [];
-  const url = "https://api.pokemontcg.io/v2/cards?pageSize=24&orderBy=-set.releaseDate&select=id,name,number,set,images,tcgplayer,cardmarket,rarity,types&q=" + encodeURIComponent(`name:*${term}*`);
+async function apiSearchOnce(qexpr){
+  const url = "https://api.pokemontcg.io/v2/cards?pageSize=24&orderBy=-set.releaseDate&select=id,name,number,set,images,tcgplayer,cardmarket,rarity,types&q=" + encodeURIComponent(qexpr);
   const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(), 12000);
   try{
     const r = await fetch(url, {signal:ctl.signal}); clearTimeout(t);
     if(!r.ok) return {err:r.status};
-    const j = await r.json(); return (j.data || []);
+    const j = await r.json(); return {data: (j.data || [])};
   }catch(e){ clearTimeout(t); return {err:"network"}; }
+}
+async function apiSearch(q){
+  const term = q.replace(/[^A-Za-z0-9 '.-]/g,"").trim().replace(/\s+/g,"*");
+  if(!term) return [];
+  // trailing wildcard is well supported; fall back to contains, then exact
+  for(const expr of [`name:${term}*`, `name:*${term}*`, `name:"${q.replace(/"/g,"")}"`]){
+    const r = await apiSearchOnce(expr);
+    if(r.data && r.data.length) return r.data;
+    if(r.data && !r.data.length) continue;   // valid response, just no hits — try next form
+    // r.err: network/http — try the next form too, remember error
+    var lastErr = r;
+  }
+  return (typeof lastErr!=="undefined" && lastErr.err) ? {err:lastErr.err} : [];
 }
 let searchSeq = 0;
 async function runSearch(q){
