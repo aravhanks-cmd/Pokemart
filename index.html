@@ -1010,7 +1010,20 @@ function closeSheet(){ $("#scrim").classList.remove("show"); $("#sheet").classLi
    Works on the live/hosted site with camera permission. Not in the
    sandboxed Artifact viewer (camera + OCR assets are blocked there).
    ============================================================ */
-let scanStream = null, scanBusy = false;
+let scanStream = null, scanBusy = false, scanWorker = null, scanWorkerP = null;
+// Pre-load the OCR engine (downloads once, then cached) with progress feedback.
+function warmScanner(){
+  if(scanWorkerP) return scanWorkerP;
+  if(typeof Tesseract === "undefined") return Promise.reject(new Error("engine unavailable"));
+  scanWorkerP = (async()=>{
+    const w = await Tesseract.createWorker("eng", 1, { logger:m=>{
+      if(!scanBusy && m && m.status && m.progress!=null && m.progress<1)
+        setScanStatus(`Loading scanner… ${Math.round(m.progress*100)}%`);
+    }});
+    scanWorker = w; return w;
+  })();
+  return scanWorkerP;
+}
 function openScanner(){
   $("#sheet-body").innerHTML = `
     <h2 style="font-family:var(--font-d);font-weight:700;font-size:20px;margin:2px 0 12px">Scan a card</h2>
@@ -1025,6 +1038,7 @@ function openScanner(){
     <canvas id="scan-canvas" hidden></canvas>`;
   showSheet();
   startCamera();
+  warmScanner().catch(()=>{});   // start downloading the OCR engine now
 }
 async function startCamera(){
   if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
@@ -1058,7 +1072,11 @@ async function captureScan(){
     const gw = Math.round(w*0.76), gh = Math.round(h*0.82);
     cv.width = gw; cv.height = gh;
     cv.getContext("2d").drawImage(v, gx, gy, gw, gh, 0, 0, gw, gh);
-    const { data } = await Tesseract.recognize(cv, "eng");
+    const worker = await warmScanner();
+    setScanStatus(`<span class="scanning"><span class="spin"></span> Reading card…</span>`);
+    // never hang forever — cap OCR at 30s
+    const timeout = new Promise((_,rej)=>setTimeout(()=>rej(new Error("timeout")), 30000));
+    const { data } = await Promise.race([ worker.recognize(cv), timeout ]);
     const text = (data && data.text || "");
     const readLine = (text.split(/\n/).map(l=>l.trim()).filter(Boolean)[0] || "").slice(0,28);
     // 1) marketplace cards first — opens the in-app card with Buy
@@ -1090,7 +1108,10 @@ async function captureScan(){
       if(btn) btn.disabled=false;
     }
   }catch(e){
-    setScanStatus("Scan error: "+esc((e&&e.message)||String(e)).slice(0,80));
+    const msg = (e&&e.message)||String(e);
+    setScanStatus(msg==="timeout"
+      ? "Reading timed out — try a sharper, well-lit shot and tap Capture again."
+      : "Scan error: "+esc(msg).slice(0,80));
     const b=$("#scan-btn"); if(b) b.disabled=false;
   }
   scanBusy = false;
