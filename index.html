@@ -1017,6 +1017,17 @@ async function apiSearch(q){
   }
   return (typeof lastErr!=="undefined" && lastErr.err) ? {err:lastErr.err} : [];
 }
+// Find printings for identification. If a number is known, query by it first —
+// that returns the few cards with that number across ALL sets (incl. old ones),
+// so vintage printings aren't buried by newest-first name search.
+async function lookupCards(name, number){
+  const nm = name ? name.replace(/"/g,"").trim() : "";
+  if(nm && number){
+    const r = await apiSearchOnce(`name:"${nm}" number:${number}`);
+    if(r.data && r.data.length) return r.data;
+  }
+  return await apiSearch(nm || number);
+}
 let searchSeq = 0;
 async function runSearch(q){
   const mine = ++searchSeq;
@@ -1221,7 +1232,7 @@ async function manualSearch(){
   const total  = nm ? nm[2] : null;
   const year   = (yearRaw.match(/\b(19|20)\d{2}\b/)||[null])[0];
   $("#sheet-body").innerHTML = `<div class="empty" style="padding:44px"><div class="ico">🔎</div><p>Finding “${esc(name)}”…</p></div>`;
-  const res = await apiSearch(name);
+  const res = await lookupCards(name, number);
   if(res && res.err){ toast("Search unavailable — try again","err"); openManual({name,num:numRaw,year:yearRaw}); return; }
   if(!res || !res.length){ toast("No cards found for that name","err"); openManual({name,num:numRaw,year:yearRaw}); return; }
   const ranked = rankScan(res, number, total, year);
@@ -1289,7 +1300,7 @@ async function captureScan(){
       if(btn) btn.disabled=false; scanBusy=false; return;
     }
     setScanStatus(`<span class="scanning"><span class="spin"></span> Looking up ${esc(name||("#"+number))}…</span>`);
-    const res = await apiSearch(name || number);
+    const res = await lookupCards(name, number);
     if(res && res.err){
       setScanStatus(res.err===429
         ? `Card database is busy (rate-limited). Wait ~30s, then scan again. (read “${esc(name||number)}”)`
