@@ -633,14 +633,18 @@ function defaultState(){
     auctions: seedAuctions(),
     listings: [],
     orders: [],       // purchases awaiting shipment
-    ship: null,       // last-used shipping address (prefill)
-    revenue: 128.44   // platform commission you've earned so far (demo)
+    ship: null,
+    customCards: {},  // cards bought via search that aren't in the base catalog
+    revenue: 128.44   // platform commission you've earned so far
   };
 }
 let S;
 function load(){
-  try{ const raw = localStorage.getItem(STORE_KEY); if(raw){ S = JSON.parse(raw); return; } }catch(e){}
-  S = defaultState();
+  try{ const raw = localStorage.getItem(STORE_KEY); if(raw){ S = JSON.parse(raw); } else { S = defaultState(); } }
+  catch(e){ S = defaultState(); }
+  if(!S.customCards) S.customCards = {};
+  // re-register searched/owned cards so the whole app can resolve them
+  Object.values(S.customCards).forEach(c=>{ CARD_BY_ID[c.id] = c; });
 }
 function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(S)); }catch(e){} }
 load();
@@ -918,6 +922,55 @@ function renderGrid(){
   $("#movers").style.display = (query||filterType!=="all") ? "none" : "";
 }
 function renderMarket(){ renderChips(); renderMovers(); renderGrid(); }
+
+/* ---------- search the full Pokémon card database ---------- */
+const API_TYPE = {fire:"fire",water:"water",grass:"grass",lightning:"lightning",psychic:"psychic",
+  dragon:"dragon",darkness:"dark",metal:"normal",fighting:"normal",colorless:"normal",fairy:"psychic"};
+function apiToCard(ac){
+  const id = "api-" + ac.id;
+  if(CARD_BY_ID[id]) return CARD_BY_ID[id];
+  const t = ((ac.types && ac.types[0]) || "normal").toLowerCase();
+  const c = {
+    id, name: ac.name, set: (ac.set && ac.set.name) || "", num: ac.number || "",
+    type: API_TYPE[t] || "normal", rarity: ac.rarity || "Card", glyph: "🃏",
+    price: Math.round((extractPrice(ac) || 0)*100)/100 || 1, chg: 0, grade: "Raw",
+    _img: (ac.images && ac.images.large) || null, _imgS: (ac.images && ac.images.small) || null, _api: true
+  };
+  CARD_BY_ID[id] = c;
+  return c;
+}
+async function apiSearch(q){
+  const term = q.replace(/[^A-Za-z0-9 '.-]/g,"").trim().replace(/\s+/g,"*");
+  if(!term) return [];
+  const url = "https://api.pokemontcg.io/v2/cards?pageSize=24&orderBy=-set.releaseDate&select=id,name,number,set,images,tcgplayer,cardmarket,rarity,types&q=" + encodeURIComponent(`name:*${term}*`);
+  const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(), 12000);
+  try{
+    const r = await fetch(url, {signal:ctl.signal}); clearTimeout(t);
+    if(!r.ok) return {err:r.status};
+    const j = await r.json(); return (j.data || []);
+  }catch(e){ clearTimeout(t); return {err:"network"}; }
+}
+let searchSeq = 0;
+async function runSearch(q){
+  const mine = ++searchSeq;
+  $("#grid-title").textContent = "Search results";
+  $("#grid-count").textContent = "";
+  $("#movers-h").style.display = "none"; $("#movers").style.display = "none";
+  $("#grid").innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="ico">🔎</div><p>Searching the Pokédex…</p></div>`;
+  const res = await apiSearch(q);
+  if(mine !== searchSeq) return;               // a newer search superseded this
+  if(res && res.err){
+    $("#grid").innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="ico">📡</div><h3>Search unavailable</h3><p>Couldn't reach the card database. Try again in a moment.</p></div>`;
+    return;
+  }
+  if(!res.length){
+    $("#grid").innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="ico">🔍</div><h3>No cards found</h3><p>Try another name.</p></div>`;
+    $("#grid-count").textContent = "0 cards"; return;
+  }
+  const list = res.map(apiToCard);
+  $("#grid-count").textContent = list.length + " cards";
+  $("#grid").innerHTML = list.map(cardTile).join("");
+}
 
 /* ============================================================
    Render: Card detail sheet
@@ -1244,6 +1297,7 @@ function placeOrder(id){
   S.wallet  -= total;
   S.revenue += c.price * FEE_RATE;               // your 3% commission
   S.owned.push({cardId:id, cost:c.price});
+  if(c._api) S.customCards[id] = c;              // keep searched cards after reload
   const eta = new Date(Date.now() + (3+Math.floor(Math.random()*3))*86400e3);
   const order = {id:"PM-"+Math.random().toString(36).slice(2,8).toUpperCase(), cardId:id,
     price:c.price, ship:SHIP_FEE, total, placedAt:Date.now(), eta:eta.getTime(), status:"Preparing shipment"};
@@ -1473,7 +1527,7 @@ function renderPortfolio(){
       </button>`).join("")}`:''}
 
     <div style="height:6px"></div>
-    <button class="btn ghost" id="reset-btn" style="margin-top:8px">Reset demo data</button>
+    <button class="btn ghost" id="reset-btn" style="margin-top:8px">Reset game data</button>
   `;
 }
 
@@ -1535,7 +1589,16 @@ $("#sheet-body").addEventListener("click", e=>{
 $("#scrim").addEventListener("click", closeSheet);
 
 // Market controls
-$("#search").addEventListener("input", e=>{ query=e.target.value.trim(); renderGrid(); });
+let searchTimer;
+$("#search").addEventListener("input", e=>{
+  query = e.target.value.trim();
+  clearTimeout(searchTimer);
+  if(query.length >= 3){
+    searchTimer = setTimeout(()=>runSearch(query), 400);   // search all cards
+  }else{
+    renderGrid();
+  }
+});
 $("#chips").addEventListener("click", e=>{ const c=e.target.closest(".chip"); if(!c) return;
   filterType=c.dataset.type; renderChips(); renderGrid(); });
 
@@ -1549,8 +1612,8 @@ $("#view-sell").addEventListener("click", e=>{
 // Portfolio reset
 $("#view-portfolio").addEventListener("click", e=>{
   if(e.target.id==="reset-btn"){
-    if(confirm("Reset all demo data (wallet, collection, auctions)?")){
-      S = defaultState(); save(); renderWallet(); renderPortfolio(); renderMarket(); toast("Demo reset");
+    if(confirm("Reset all game data (wallet, collection, auctions)?")){
+      S = defaultState(); save(); renderWallet(); renderPortfolio(); renderMarket(); toast("Game reset");
     }
   }
 });
