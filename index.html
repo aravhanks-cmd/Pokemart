@@ -454,6 +454,11 @@ input{font-family:inherit}
         <div class="modetxt"><div class="mt">Identify a card</div><div class="ms">Scan with your camera or enter it manually.</div></div>
         <div class="modego">›</div>
       </button>
+      <button class="modecard" data-share="1">
+        <div class="modeic" style="background:var(--up-soft);color:var(--up)">📣</div>
+        <div class="modetxt"><div class="mt">Share PokéMart</div><div class="ms">Invite friends to play, scan &amp; trade.</div></div>
+        <div class="modego">›</div>
+      </button>
     </section>
 
     <!-- REAL market -->
@@ -856,6 +861,12 @@ function setMode(m){
   }
 }
 function renderHome(){ const el=$("#home-bal"); if(el) el.textContent = money(S.wallet); }
+function shareApp(){
+  const url = "https://aravhanks-cmd.github.io/Pokemart/";
+  const text = "Check out PokéMart — scan any Pokémon card to get its price, then buy, sell & bid in the card market! 🔴⚡";
+  if(navigator.share){ navigator.share({title:"PokéMart", text, url}).catch(()=>{}); }
+  else { try{ navigator.clipboard.writeText(url); toast("Link copied — paste it anywhere! 📋","win"); }catch(e){ toast(url); } }
+}
 
 /* ---------- Real market (Stripe payment links) ---------- */
 // Paste your Stripe Payment Link URLs here, e.g.
@@ -1788,6 +1799,7 @@ document.addEventListener("click", e=>{
   const oi=e.target.closest("[data-openidentify]"); if(oi){ openIdentify(); return; }
   const mn=e.target.closest("[data-manual]"); if(mn){ openManual(); return; }
   const msb=e.target.closest("[data-manualsearch]"); if(msb){ manualSearch(); return; }
+  const shr=e.target.closest("[data-share]"); if(shr){ shareApp(); return; }
   const nt=e.target.closest("[data-notify]"); if(nt){ toast("You're on the list! We'll ping you when Real goes live 🎉","win"); return; }
   const rb=e.target.closest("[data-realbuy]"); if(rb){ realBuy(rb.dataset.realbuy); return; }
   const sh=e.target.closest("[data-stripehelp]"); if(sh){ openStripeHelp(); return; }
