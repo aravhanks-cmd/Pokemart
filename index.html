@@ -1648,8 +1648,8 @@ function renderSell(){
     </div>
     <div class="field">
       <label>${sellMode==='fixed'?'Asking price':'Starting bid'}</label>
-      <div class="moneyin"><span>$</span><input id="sell-price" type="number" inputmode="decimal" value="${suggest}" min="1" step="1"></div>
-      <p style="font-size:11.5px;color:var(--faint);margin:8px 2px 0">Market value ${money(c.price)}. ${sellMode==='fixed'?'PokéMarket commission 3% on sale.':'Runs for 24h · 3% commission on final price.'}</p>
+      <div class="moneyin"><span>$</span><input id="sell-price" type="number" inputmode="decimal" value="${suggest}" min="1" max="${c.price}" step="1"></div>
+      <p style="font-size:11.5px;color:var(--faint);margin:8px 2px 0">Market value ${money(c.price)} — can't list above it. ${sellMode==='fixed'?'PokéMarket commission 3% on sale.':'Runs for 24h · 3% commission on final price.'}</p>
     </div>
     <div class="co-badge">📮 When it sells we email a prepaid, insured shipping label — drop it in the mail and we handle the rest.</div>
     <button class="btn primary" id="list-btn">${sellMode==='fixed'?'List for '+money(suggest):'Start auction at '+money(suggest)}</button>
@@ -1658,7 +1658,8 @@ function renderSell(){
   // keep the estimate line/button in sync as the user types
   const priceInput = $("#sell-price");
   priceInput.addEventListener("input", ()=>{
-    const v = parseFloat(priceInput.value)||0;
+    let v = parseFloat(priceInput.value)||0;
+    if(v > c.price){ v = c.price; priceInput.value = c.price; toast("Max is market value "+money(c.price),"err"); }
     $("#list-btn").textContent = (sellMode==='fixed'?'List for ':'Start auction at ')+money(v);
     body.querySelector("p:last-of-type").textContent = "You'll receive "+money(v*(1-FEE_RATE))+" after the 3% fee if it sells.";
   });
@@ -1667,6 +1668,7 @@ function listCard(){
   const c = CARD_BY_ID[sellSel];
   const price = Math.round((parseFloat($("#sell-price").value)||0)*100)/100;
   if(price < 1){ toast("Set a valid price","err"); return; }
+  if(price > c.price){ toast("Can't sell above market value ("+money(c.price)+")","err"); return; }
   // remove one copy from collection
   const idx = S.owned.findIndex(o=>o.cardId===sellSel);
   if(idx<0){ toast("You don't own that card","err"); return; }
